@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     EMAIL: str = config("EMAIL")
     EMAIL_PASSWORD: str = config("EMAIL_PASSWORD")
+
+    FRONT_URL: str = config("FRONT_URL")
     """
     import secrets
 
