@@ -8,6 +8,7 @@ from app.schemas.user_schema import UserSchemaBase
 
 
 class ProjectSchemaBase(CustomBaseModel):
+    id: Optional[int] = None
     title: str
     description: str
 

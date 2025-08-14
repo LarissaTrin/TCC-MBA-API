@@ -1,4 +1,5 @@
 ﻿from pydantic import BaseModel
+from pydantic.alias_generators import to_camel
 
 
 class CustomBaseModel(BaseModel):
@@ -9,4 +10,5 @@ class CustomBaseModel(BaseModel):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        populate_by_name = True
+        alias_generator = to_camel

@@ -78,6 +78,17 @@ class ProjectRules:
         """
         query = (
             select(ProjectModel)
+            .options(
+                selectinload(ProjectModel.creator),
+                selectinload(ProjectModel.lists),
+                selectinload(ProjectModel.project_users).selectinload(
+                    ProjectUserModel.role
+                ),
+                selectinload(ProjectModel.project_users).selectinload(
+                    ProjectUserModel.user
+                ),  # <-- importante
+                # selectinload(ProjectModel.tags),  # se usar tags
+            )
             .join(
                 ProjectModel.project_users
             )  # Assumindo relacionamento com ProjectUserModel
@@ -105,7 +116,7 @@ class ProjectRules:
             list[ProjectModel]: Lista de ProjectModel com 'id' e 'title' dos projetos.
         """
         query = (
-            select(ProjectModel.id, ProjectModel.title)
+            select(ProjectModel.id, ProjectModel.title, ProjectModel.description)
             .join(ProjectModel.project_users)
             .where(ProjectUserModel.user_id == user_id)
         )
@@ -137,9 +148,19 @@ class ProjectRules:
         """
         query = (
             select(ProjectModel)
-            .options(selectinload(ProjectModel.lists))
+            .options(
+                selectinload(ProjectModel.creator),
+                selectinload(ProjectModel.lists),
+                selectinload(ProjectModel.project_users).selectinload(
+                    ProjectUserModel.user
+                ),
+                selectinload(ProjectModel.project_users).selectinload(
+                    ProjectUserModel.role
+                ),
+            )
             .where(ProjectModel.id == project_id)
         )
+
         result = await self.db_session.execute(query)
         project = result.scalars().unique().one_or_none()
         if not project:
@@ -182,6 +203,7 @@ class ProjectRules:
 
         await self.db_session.commit()
         await self.db_session.refresh(project)
+
         return project
 
     async def delete_project(self, project_id: int, user_id: int) -> None:

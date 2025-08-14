@@ -53,6 +53,9 @@ class UserSchemaUp(UserSchemaBase):
 class TokenData(CustomBaseModel):
     access_token: str
     expires_at: datetime
+    user_id: Optional[int] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
 
 
 class ForgotPasswordRequest(CustomBaseModel):

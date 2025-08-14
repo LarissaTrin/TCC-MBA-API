@@ -27,14 +27,15 @@ async def login(
     return token_data
 
 
-@router.post("/", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=TokenData, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserSchemaCreate,
     db_session: AsyncSession = Depends(get_session),
 ):
     rules = UserRules(db_session)
-    user = await rules.create_user(user_data)
-    return user
+    await rules.create_user(user_data)
+    token_data = await rules.login(user_data.email, user_data.password)
+    return token_data
 
 
 @router.put("/{user_id}", response_model=UserSchema)
@@ -47,6 +48,16 @@ async def update_user(
     rules = UserRules(db_session)
     user = await rules.update_user(user_id, current_user.id, data)
     return user
+
+
+@router.get("/user", response_model=UserSchema)
+async def get_current_user_info(
+    db_session: AsyncSession = Depends(get_session),
+    current_user: UserModel = Depends(get_current_user),
+):
+    rules = UserRules(db_session)
+    user = await rules.get_user_by_id(current_user.id, current_user.id)
+    return UserSchema.model_validate(user)
 
 
 @router.get("/{user_id}", response_model=UserSchema)

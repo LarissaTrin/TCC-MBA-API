@@ -36,6 +36,9 @@ class UserRules:
         return TokenData(
             access_token=access_token,
             expires_at=expires_at,
+            user_id=user.id,
+            first_name=user.firstName,
+            last_name=user.lastName,
         )
 
     async def create_user(self, user_data: UserSchemaCreate) -> UserModel:

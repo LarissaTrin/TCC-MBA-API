@@ -2,7 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.exceptions import HTTPException
 
-from app.schemas.project_schema import ProjectSchemaBase, ProjectSchemaUp
+from app.schemas.project_schema import ProjectSchema, ProjectSchemaBase, ProjectSchemaUp
 from app.schemas.project_user_schema import ProjectUserSchemaBase
 from app.core.deps import get_current_user, get_session
 from app.rules.project import ProjectRules
@@ -21,14 +21,17 @@ async def create_project(
     return await rules.add_project(project, creator_id=current_user.id)
 
 
-@router.get("/{project_id}")
+@router.get("/{project_id}", response_model=ProjectSchema)
 async def get_project_by_id(
     project_id: int,
     db: AsyncSession = Depends(get_session),
     current_user: UserSchema = Depends(get_current_user),
 ):
     rules = ProjectRules(db)
-    return await rules.get_project_by_id_and_user(project_id, user_id=current_user.id)
+    project = await rules.get_project_by_id_and_user(
+        project_id, user_id=current_user.id
+    )
+    return project
 
 
 @router.get("/", response_model=list[ProjectSchemaBase])
@@ -40,7 +43,7 @@ async def get_projects(
     return await rules.get_projects_for_user(user_id=current_user.id)
 
 
-@router.put("/{project_id}")
+@router.put("/{project_id}", response_model=ProjectSchema)
 async def update_project(
     project_id: int,
     data: ProjectSchemaUp,
