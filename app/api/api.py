@@ -10,10 +10,10 @@ from app.api.routes import (
 
 api_router = APIRouter()
 
+api_router.include_router(user_router.router, prefix="/users", tags=["Users"])
 api_router.include_router(project_router.router, prefix="/projects", tags=["Projects"])
 api_router.include_router(
     list_router.router, prefix="/projects/{project_id}/lists", tags=["Lists"]
 )
 api_router.include_router(card_router.router, prefix="/cards", tags=["Cards"])
 api_router.include_router(comments_router.router, prefix="/comments", tags=["Comments"])
-api_router.include_router(user_router.router, prefix="/users", tags=["Users"])

@@ -12,7 +12,7 @@ class CommentSchemaBase(CustomBaseModel):
 
 class CommentCreateSchema(CommentSchemaBase):
     description: str
-    card_id: int
+    card_id: Optional[int] = None
 
 
 class CommentSchema(CommentSchemaBase):

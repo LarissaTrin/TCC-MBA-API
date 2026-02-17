@@ -32,7 +32,7 @@ class CommentRules:
         result = await self.db_session.execute(
             select(CardModel).where(CardModel.id == card_id)
         )
-        card = result.scalar_one_or_none()
+        card = result.unique().scalar_one_or_none()  # <-- Corrigido aqui
         if not card:
             raise NoResultFound(f"Card com id={card_id} não encontrado.")
 
@@ -69,7 +69,7 @@ class CommentRules:
         result = await self.db_session.execute(
             select(CommentModel).where(CommentModel.id == comment_id)
         )
-        comment = result.scalar_one_or_none()
+        comment = result.unique().scalar_one_or_none()
         if not comment:
             raise NoResultFound(f"Comentário com id={comment_id} não encontrado.")
 
@@ -96,7 +96,7 @@ class CommentRules:
         result = await self.db_session.execute(
             select(CommentModel).where(CommentModel.id == comment_id)
         )
-        comment = result.scalar_one_or_none()
+        comment = result.unique().scalar_one_or_none()
         if not comment:
             raise NoResultFound(f"Comentário com id={comment_id} não encontrado.")
 
