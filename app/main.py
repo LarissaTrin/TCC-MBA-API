@@ -10,8 +10,8 @@ app = FastAPI(title="TCC API")
 app.include_router(api_router, prefix=settings.API_STR)
 
 origins = [
-    "http://localhost:4200",  # Angular local
-    "http://127.0.0.1:4200",  # alternativa local
+    "http://localhost:3000",  # Next.js local
+    "http://127.0.0.1:3000",  # alternativa local
     "https://seu-frontend.com.br",  # (caso tenha um ambiente de produção)
 ]
 

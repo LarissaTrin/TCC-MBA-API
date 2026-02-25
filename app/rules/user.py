@@ -239,7 +239,7 @@ class UserRules:
         access_token = self.token_service.create_access_token(sub=user.id, minutes=60)
 
         front_url = settings.FRONT_URL
-        reset_link = f"{front_url}/reset-password?token={access_token}"
+        reset_link = f"{front_url}/login/change-password/{access_token}"
         send_email(
             to=email,
             subject="Redefinição de senha",
