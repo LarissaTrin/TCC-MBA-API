@@ -2,7 +2,14 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.exceptions import HTTPException
 
-from app.schemas.project_schema import ProjectSchema, ProjectSchemaBase, ProjectSchemaUp
+from app.schemas.project_schema import (
+    InviteEntry,
+    InviteUsersRequest,
+    InviteUsersResponse,
+    ProjectSchema,
+    ProjectSchemaBase,
+    ProjectSchemaUp,
+)
 from app.schemas.project_user_schema import ProjectUserSchemaBase
 from app.core.deps import get_current_user, get_session
 from app.rules.project import ProjectRules
@@ -63,6 +70,39 @@ async def delete_project(
 ):
     rules = ProjectRules(db)
     await rules.delete_project(project_id, user_id=current_user.id)
+
+
+@router.post("/{project_id}/members/invite", response_model=InviteUsersResponse)
+async def invite_project_members(
+    project_id: int,
+    body: InviteUsersRequest,
+    db: AsyncSession = Depends(get_session),
+    current_user: UserSchema = Depends(get_current_user),
+):
+    rules = ProjectRules(db)
+    inviter_name = f"{current_user.firstName} {current_user.lastName or ''}".strip()
+    invites = [{"email": inv.email, "role": inv.role} for inv in body.invites]
+    return await rules.invite_users_by_email(
+        project_id=project_id,
+        invites=invites,
+        inviter_name=inviter_name,
+        current_user_id=current_user.id,
+    )
+
+
+@router.delete("/{project_id}/members/{member_user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_project_member(
+    project_id: int,
+    member_user_id: int,
+    db: AsyncSession = Depends(get_session),
+    current_user: UserSchema = Depends(get_current_user),
+):
+    rules = ProjectRules(db)
+    await rules.remove_project_member(
+        project_id=project_id,
+        user_id_to_remove=member_user_id,
+        current_user_id=current_user.id,
+    )
 
 
 @router.put("/{project_id}/users")

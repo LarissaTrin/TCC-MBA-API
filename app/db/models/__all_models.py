@@ -9,3 +9,4 @@ from db.models.tag_card_model import TagCardModel
 from db.models.tag_model import TagModel
 from db.models.task_card_model import TaskCardModel
 from db.models.user_model import UserModel
+from db.models.user_notes_model import UserNotesModel

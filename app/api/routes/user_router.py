@@ -2,6 +2,8 @@
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import BaseModel as PydanticBaseModel
+
 from app.schemas.user_schema import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
@@ -10,9 +12,14 @@ from app.schemas.user_schema import (
     UserSchema,
     TokenData,
 )
+
+
+class NotesBody(PydanticBaseModel):
+    notes: str
 from app.core.deps import get_current_user, get_session
 from app.rules.user import UserRules
 from app.db.models.user_model import UserModel
+from app.db.models.user_notes_model import UserNotesModel
 
 router = APIRouter()
 
@@ -69,6 +76,38 @@ async def get_user(
     rules = UserRules(db_session)
     user = await rules.get_user_by_id(user_id, current_user.id)
     return user
+
+
+@router.get("/me/notes")
+async def get_notes(
+    db_session: AsyncSession = Depends(get_session),
+    current_user: UserModel = Depends(get_current_user),
+):
+    from sqlalchemy.future import select
+    result = await db_session.execute(
+        select(UserNotesModel).where(UserNotesModel.user_id == current_user.id)
+    )
+    notes_row = result.scalar_one_or_none()
+    return {"notes": notes_row.content if notes_row else ""}
+
+
+@router.put("/me/notes")
+async def save_notes(
+    body: NotesBody,
+    db_session: AsyncSession = Depends(get_session),
+    current_user: UserModel = Depends(get_current_user),
+):
+    from sqlalchemy.future import select
+    result = await db_session.execute(
+        select(UserNotesModel).where(UserNotesModel.user_id == current_user.id)
+    )
+    notes_row = result.scalar_one_or_none()
+    if notes_row:
+        notes_row.content = body.notes
+    else:
+        db_session.add(UserNotesModel(user_id=current_user.id, content=body.notes))
+    await db_session.commit()
+    return {"notes": body.notes}
 
 
 @router.post("/forgot-password")

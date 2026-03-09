@@ -3,9 +3,13 @@ from sqlalchemy import delete, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
 
+from fastapi import HTTPException
+
 from app.db.models.approver_model import ApproverModel
 from app.db.models.card_model import CardModel
 from app.db.models.list_model import ListModel
+from app.db.models.project_user_model import ProjectUserModel
+from app.db.models.role_model import RoleModel
 from app.db.models.tag_card_model import TagCardModel
 from app.db.models.task_card_model import TaskCardModel
 from app.schemas.card_schema import CardSchemaBase, CardSchemaUp
@@ -191,21 +195,46 @@ class CardRules:
         await self.db_session.refresh(card)
         return card
 
-    async def delete_card(self, card_id: int) -> None:
+    async def delete_card(self, card_id: int, user_id: int) -> None:
         """
         Remove um card e seus relacionamentos (tags, approvers, tasks).
+        Apenas SuperAdmin do projeto pode deletar.
 
         Args:
             card_id (int): ID do card a ser removido.
+            user_id (int): ID do usuário que solicita a remoção.
 
         Raises:
             NoResultFound: Se o card não existir.
+            HTTPException: Se o usuário não for SuperAdmin.
         """
+        await self._check_delete_permission(card_id, user_id)
         card = await self._get_card_or_404(card_id)
 
         await self.db_session.delete(card)
 
         await self.db_session.commit()
+
+    async def _check_delete_permission(self, card_id: int, user_id: int) -> None:
+        """
+        Verifica se o usuário é SuperAdmin ou Admin do projeto ao qual o card pertence.
+        """
+        query = (
+            select(RoleModel.name)
+            .join(ProjectUserModel, RoleModel.id == ProjectUserModel.role_id)
+            .join(ListModel, ListModel.project_id == ProjectUserModel.project_id)
+            .join(CardModel, CardModel.list_id == ListModel.id)
+            .where(
+                CardModel.id == card_id,
+                ProjectUserModel.user_id == user_id,
+            )
+        )
+        result = await self.db_session.execute(query)
+        role_name = result.scalar_one_or_none()
+        if role_name not in {"SuperAdmin", "Admin"}:
+            raise HTTPException(
+                status_code=403, detail="Apenas SuperAdmin e Admin podem deletar cards."
+            )
 
     async def _get_card_or_404(self, card_id: int) -> CardModel:
         query = select(CardModel).where(CardModel.id == card_id)

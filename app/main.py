@@ -3,8 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.configs import settings
 from app.api.api import api_router
+from app.db.conection import engine
 
 app = FastAPI(title="TCC API")
+
+
+@app.on_event("startup")
+async def create_new_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(settings.DBBaseModel.metadata.create_all)
 
 
 app.include_router(api_router, prefix=settings.API_STR)

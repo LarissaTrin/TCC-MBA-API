@@ -79,12 +79,12 @@ async def delete_card(
     db_session: AsyncSession = Depends(get_session),
 ):
     """
-    Deleta um card e seus relacionamentos.
+    Deleta um card e seus relacionamentos. Apenas SuperAdmin do projeto pode deletar.
     """
     rules = CardRules(db_session)
 
     try:
-        await rules.delete_card(card_id)
+        await rules.delete_card(card_id, user_id=current_user.id)
     except NoResultFound:
         raise HTTPException(
             status_code=404, detail=f"Card com id={card_id} não encontrado."

@@ -6,12 +6,20 @@ from sqlalchemy.exc import NoResultFound
 from fastapi.exceptions import HTTPException
 from fastapi import status
 
+from app.core.configs import settings
+from app.core.email import send_email
 from app.db.models.list_model import ListModel
 from app.db.models.project_model import ProjectModel
 from app.db.models.project_user_model import ProjectUserModel
 from app.db.models.role_model import RoleModel
+from app.db.models.user_model import UserModel
 
-from app.schemas.project_schema import ProjectSchemaBase, ProjectSchemaUp
+from app.schemas.project_schema import (
+    InviteUserResult,
+    InviteUsersResponse,
+    ProjectSchemaBase,
+    ProjectSchemaUp,
+)
 from app.schemas.project_user_schema import ProjectUserSchemaBase
 
 
@@ -298,4 +306,143 @@ class ProjectRules:
             if user.id not in received_ids:
                 await self.db_session.delete(user)
 
+        await self.db_session.commit()
+
+    async def _get_user_role_in_project(self, project_id: int, user_id: int) -> str | None:
+        query = (
+            select(RoleModel.name)
+            .join(ProjectUserModel, RoleModel.id == ProjectUserModel.role_id)
+            .where(
+                ProjectUserModel.project_id == project_id,
+                ProjectUserModel.user_id == user_id,
+            )
+        )
+        result = await self.db_session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def invite_users_by_email(
+        self,
+        project_id: int,
+        invites: list[dict],  # [{"email": str, "role": str}]
+        inviter_name: str,
+        current_user_id: int,
+    ) -> InviteUsersResponse:
+        """
+        Convida usuários por email para um projeto. Apenas SuperAdmin e Admin podem convidar.
+        Se o email existir no banco, adiciona com o role especificado.
+        Se não existir, envia email de convite.
+        Roles permitidos ao convidar: User, Leader, Admin (nunca SuperAdmin).
+        """
+        caller_role = await self._get_user_role_in_project(project_id, current_user_id)
+        if caller_role not in {"SuperAdmin", "Admin"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Apenas SuperAdmin e Admin podem convidar membros.",
+            )
+
+        # Carrega todos os role_ids de uma vez
+        roles_result = await self.db_session.execute(select(RoleModel))
+        roles_map: dict[str, int] = {
+            r.name: r.id for r in roles_result.scalars().all()
+        }
+
+        allowed_invite_roles = {"User", "Leader", "Admin"}
+
+        # Busca membros atuais do projeto
+        existing_members_result = await self.db_session.execute(
+            select(ProjectUserModel.user_id).where(
+                ProjectUserModel.project_id == project_id
+            )
+        )
+        existing_user_ids = set(existing_members_result.scalars().all())
+
+        results: list[InviteUserResult] = []
+
+        for invite in invites:
+            email = invite["email"]
+            role_name = invite.get("role", "User")
+
+            # Garante que não se pode atribuir SuperAdmin por convite
+            if role_name not in allowed_invite_roles:
+                role_name = "User"
+
+            role_id = roles_map.get(role_name)
+            if role_id is None:
+                role_id = roles_map.get("User")
+
+            user_result = await self.db_session.execute(
+                select(UserModel).where(UserModel.email == email)
+            )
+            user = user_result.scalar_one_or_none()
+
+            if user:
+                if user.id in existing_user_ids:
+                    results.append(
+                        InviteUserResult(email=email, registered=True, already_member=True)
+                    )
+                else:
+                    new_member = ProjectUserModel(
+                        user_id=user.id,
+                        project_id=project_id,
+                        role_id=role_id,
+                    )
+                    self.db_session.add(new_member)
+                    existing_user_ids.add(user.id)
+                    results.append(
+                        InviteUserResult(email=email, registered=True, already_member=False)
+                    )
+            else:
+                front_url = settings.FRONT_URL
+                send_email(
+                    to=email,
+                    subject="Você foi convidado para o sistema de gerenciamento",
+                    body=(
+                        f"Olá!\n\n{inviter_name} convidou você para participar de um projeto "
+                        f"no sistema de gerenciamento.\n\n"
+                        f"Você ainda não possui uma conta. Crie sua conta em:\n"
+                        f"{front_url}/login/register"
+                    ),
+                )
+                results.append(
+                    InviteUserResult(email=email, registered=False, already_member=False)
+                )
+
+        await self.db_session.commit()
+        return InviteUsersResponse(results=results)
+
+    async def remove_project_member(
+        self, project_id: int, user_id_to_remove: int, current_user_id: int
+    ) -> None:
+        """
+        Remove um membro do projeto. Apenas SuperAdmin e Admin podem remover.
+        O SuperAdmin não pode ser removido.
+        """
+        role_name = await self._get_user_role_in_project(project_id, current_user_id)
+        if role_name not in {"SuperAdmin", "Admin"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Apenas SuperAdmin e Admin podem remover membros.",
+            )
+
+        target_role = await self._get_user_role_in_project(project_id, user_id_to_remove)
+        if target_role == "SuperAdmin":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="O criador do projeto não pode ser removido.",
+            )
+
+        result = await self.db_session.execute(
+            select(ProjectUserModel).where(
+                ProjectUserModel.project_id == project_id,
+                ProjectUserModel.user_id == user_id_to_remove,
+            )
+        )
+        member = result.scalar_one_or_none()
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Membro não encontrado no projeto.",
+            )
+
+        await self.db_session.delete(member)
         await self.db_session.commit()

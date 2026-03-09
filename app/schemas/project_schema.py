@@ -28,3 +28,22 @@ class ProjectSchema(ProjectSchemaBase):
     lists: Optional[list[ListSchema]] = []
     project_users: Optional[list[ProjectUserSchema]] = []
     # tags: Optional[list["TagSchema"]] = []
+
+
+class InviteEntry(CustomBaseModel):
+    email: str
+    role: str = "User"  # "User", "Leader" ou "Admin"
+
+
+class InviteUsersRequest(CustomBaseModel):
+    invites: list[InviteEntry]
+
+
+class InviteUserResult(CustomBaseModel):
+    email: str
+    registered: bool
+    already_member: bool = False
+
+
+class InviteUsersResponse(CustomBaseModel):
+    results: list[InviteUserResult]
