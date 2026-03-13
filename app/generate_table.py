@@ -2,9 +2,9 @@
 from sqlalchemy import text
 from sqlalchemy.future import select
 
-from core.configs import settings
-from db.conection import engine, Session
-from db.models.role_model import RoleModel
+from app.core.configs import settings
+from app.db.conection import engine, Session
+from app.db.models.role_model import RoleModel
 
 
 async def create_tables() -> None:

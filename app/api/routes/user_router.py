@@ -1,9 +1,11 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+﻿from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pydantic import BaseModel as PydanticBaseModel
 
+from app.core.configs import settings
 from app.schemas.user_schema import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
@@ -40,9 +42,20 @@ async def create_user(
     db_session: AsyncSession = Depends(get_session),
 ):
     rules = UserRules(db_session)
-    await rules.create_user(user_data)
-    token_data = await rules.login(user_data.email, user_data.password)
-    return token_data
+    user = await rules.create_user(user_data)
+    # Generate token directly — avoids a redundant bcrypt.verify() call that login() would trigger,
+    # cutting registration time roughly in half on CPU-limited environments.
+    access_token = rules.token_service.create_access_token(sub=user.id)
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    return TokenData(
+        access_token=access_token,
+        expires_at=expires_at,
+        user_id=user.id,
+        first_name=user.firstName,
+        last_name=user.lastName,
+    )
 
 
 @router.put("/{user_id}", response_model=UserSchema)

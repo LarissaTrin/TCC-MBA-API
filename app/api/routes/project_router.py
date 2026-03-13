@@ -18,14 +18,15 @@ from app.schemas.user_schema import UserSchema
 router = APIRouter()
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=ProjectSchemaBase)
 async def create_project(
     project: ProjectSchemaBase,
     db: AsyncSession = Depends(get_session),
     current_user: UserSchema = Depends(get_current_user),
 ):
     rules = ProjectRules(db)
-    return await rules.add_project(project, creator_id=current_user.id)
+    project_id = await rules.add_project(project, creator_id=current_user.id)
+    return {"id": project_id, "title": project.title, "description": project.description}
 
 
 @router.get("/{project_id}", response_model=ProjectSchema)
