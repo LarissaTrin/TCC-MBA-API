@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, Integer, String, ForeignKey
+﻿from sqlalchemy import Boolean, Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.core.configs import settings
@@ -9,6 +9,7 @@ class ListModel(settings.DBBaseModel):
     id = Column("id", Integer, primary_key=True, autoincrement=True)
     name = Column("name", String(100))
     order = Column("order", Integer)
+    is_final = Column("isFinal", Boolean, nullable=False, default=False, server_default="false")
 
     project_id = Column("projectId", Integer, ForeignKey("projects.id"))
 

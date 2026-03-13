@@ -37,6 +37,7 @@ class CardSchema(CardSchemaUp):
 
     created_at: datetime
     updated_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
     user: Optional[UserSchemaBase] = None
     tag_cards: Optional[list[TagCardSchema]] = None

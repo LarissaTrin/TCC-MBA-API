@@ -3,6 +3,7 @@
 from app.api.routes import (
     card_router,
     comments_router,
+    dashboard_router,
     project_router,
     user_router,
     list_router,
@@ -17,3 +18,4 @@ api_router.include_router(
 )
 api_router.include_router(card_router.router, prefix="/cards", tags=["Cards"])
 api_router.include_router(comments_router.router, prefix="/comments", tags=["Comments"])
+api_router.include_router(dashboard_router.router, prefix="/dashboard", tags=["Dashboard"])

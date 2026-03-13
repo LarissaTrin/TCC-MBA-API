@@ -1,4 +1,5 @@
 ﻿from app.db.models.approver_model import ApproverModel
+from app.db.models.card_history_model import CardHistoryModel
 from app.db.models.card_model import CardModel
 from app.db.models.comment_model import CommentModel
 from app.db.models.list_model import ListModel

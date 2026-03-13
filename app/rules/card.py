@@ -6,6 +6,7 @@ from sqlalchemy.exc import NoResultFound
 from fastapi import HTTPException
 
 from app.db.models.approver_model import ApproverModel
+from app.db.models.card_history_model import CardHistoryModel
 from app.db.models.card_model import CardModel
 from app.db.models.list_model import ListModel
 from app.db.models.project_user_model import ProjectUserModel
@@ -102,6 +103,32 @@ class CardRules:
             NoResultFound: Se o card não existir.
         """
         card = await self._get_card_or_404(card_id)
+
+        # --- Detectar mudança de lista para Audit Log e completed_at ---
+        if data.list_id is not None and data.list_id != card.list_id:
+            old_list_result = await self.db_session.execute(
+                select(ListModel).where(ListModel.id == card.list_id)
+            )
+            old_list = old_list_result.scalars().unique().one_or_none()
+
+            new_list_result = await self.db_session.execute(
+                select(ListModel).where(ListModel.id == data.list_id)
+            )
+            new_list = new_list_result.scalars().unique().one_or_none()
+
+            if new_list:
+                # Preenche completed_at ao entrar na lista final; limpa ao sair
+                card.completed_at = datetime.utcnow() if new_list.is_final else None
+
+                # Grava no histórico
+                self.db_session.add(
+                    CardHistoryModel(
+                        card_id=card.id,
+                        action="moved",
+                        old_value=old_list.name if old_list else str(card.list_id),
+                        new_value=new_list.name,
+                    )
+                )
 
         # --- Atualizar campos simples ---
         for field in [

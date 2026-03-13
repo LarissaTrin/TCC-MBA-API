@@ -17,6 +17,7 @@ class CardModel(settings.DBBaseModel):
     user_id = Column("userId", Integer, ForeignKey("users.id"), nullable=True)
 
     date = Column("date", DateTime, nullable=True)
+    completed_at = Column("completedAt", DateTime, nullable=True)
     priority = Column("priority", Integer, nullable=True)
     description = Column("description", String(1000), nullable=True)
     planned_hours = Column("plannedHours", Integer, nullable=True)
@@ -54,4 +55,11 @@ class CardModel(settings.DBBaseModel):
         cascade="all, delete-orphan",
         uselist=True,
         lazy="joined",
+    )
+    history = relationship(
+        "CardHistoryModel",
+        back_populates="card",
+        cascade="all, delete-orphan",
+        uselist=True,
+        lazy="noload",
     )

@@ -1,5 +1,6 @@
 ﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.core.configs import settings
 from app.api.api import api_router
@@ -11,7 +12,20 @@ app = FastAPI(title="TCC API")
 @app.on_event("startup")
 async def create_new_tables():
     async with engine.begin() as conn:
+        # Create any brand-new tables (e.g. card_history)
         await conn.run_sync(settings.DBBaseModel.metadata.create_all)
+
+        # Add new columns to existing tables (create_all ignores existing tables).
+        # IF NOT EXISTS is safe to run on every startup.
+        await conn.execute(
+            text('ALTER TABLE cards ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP')
+        )
+        await conn.execute(
+            text(
+                'ALTER TABLE lists ADD COLUMN IF NOT EXISTS "isFinal"'
+                " BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        )
 
 
 app.include_router(api_router, prefix=settings.API_STR)
