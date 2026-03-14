@@ -44,3 +44,11 @@ class CardSchema(CardSchemaUp):
     comments: Optional[list[CommentSchema]] = None
     approvers: Optional[list[ApproverSchema]] = None
     tasks_card: Optional[list[TaskCardSchema]] = None
+
+
+class CardHistorySchema(CustomBaseModel):
+    id: int
+    action: str
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    created_at: datetime

@@ -4,7 +4,7 @@ from sqlalchemy.exc import NoResultFound
 
 from app.core.deps import get_current_user, get_session
 from app.rules.card import CardRules
-from app.schemas.card_schema import CardSchema, CardSchemaBase, CardSchemaUp
+from app.schemas.card_schema import CardHistorySchema, CardSchema, CardSchemaBase, CardSchemaUp
 from app.schemas.user_schema import UserSchema
 
 router = APIRouter()
@@ -70,6 +70,19 @@ async def update_card(
         raise HTTPException(
             status_code=404, detail=f"Card com id={card_id} não encontrado."
         )
+
+
+@router.get("/{card_id}/history", response_model=list[CardHistorySchema])
+async def get_card_history(
+    card_id: int,
+    current_user: UserSchema = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_session),
+):
+    """
+    Retorna o histórico de eventos de um card (movimentações, atribuições, etc.).
+    """
+    rules = CardRules(db_session)
+    return await rules.get_card_history(card_id)
 
 
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)

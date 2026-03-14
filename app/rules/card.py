@@ -130,6 +130,37 @@ class CardRules:
                     )
                 )
 
+        # --- Audit Log: assigned, priority_changed, due_date_changed ---
+        if data.user_id is not None and data.user_id != card.user_id:
+            self.db_session.add(
+                CardHistoryModel(
+                    card_id=card.id,
+                    action="assigned",
+                    old_value=str(card.user_id) if card.user_id else "Não atribuído",
+                    new_value=str(data.user_id),
+                )
+            )
+
+        if data.priority is not None and data.priority != card.priority:
+            self.db_session.add(
+                CardHistoryModel(
+                    card_id=card.id,
+                    action="priority_changed",
+                    old_value=str(card.priority) if card.priority is not None else "Sem prioridade",
+                    new_value=str(data.priority),
+                )
+            )
+
+        if data.date is not None and data.date != card.date:
+            self.db_session.add(
+                CardHistoryModel(
+                    card_id=card.id,
+                    action="due_date_changed",
+                    old_value=card.date.strftime("%d/%m/%Y") if card.date else "Sem data",
+                    new_value=data.date.strftime("%d/%m/%Y"),
+                )
+            )
+
         # --- Atualizar campos simples ---
         for field in [
             "title",
@@ -221,6 +252,24 @@ class CardRules:
         await self.db_session.commit()
         await self.db_session.refresh(card)
         return card
+
+    async def get_card_history(self, card_id: int) -> list[CardHistoryModel]:
+        """
+        Retorna o histórico de eventos de um card em ordem cronológica decrescente.
+
+        Args:
+            card_id (int): ID do card.
+
+        Returns:
+            list[CardHistoryModel]: Eventos registrados (moved, assigned, priority_changed, due_date_changed).
+        """
+        query = (
+            select(CardHistoryModel)
+            .where(CardHistoryModel.card_id == card_id)
+            .order_by(CardHistoryModel.created_at.desc())
+        )
+        result = await self.db_session.execute(query)
+        return result.scalars().all()
 
     async def delete_card(self, card_id: int, user_id: int) -> None:
         """
