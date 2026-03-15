@@ -52,3 +52,24 @@ class CardHistorySchema(CustomBaseModel):
     old_value: Optional[str] = None
     new_value: Optional[str] = None
     created_at: datetime
+
+
+class CardDependencyItem(CustomBaseModel):
+    """Representação resumida de um card dentro de uma dependência."""
+    id: int
+    card_number: int
+    title: str
+
+
+class CardDependenciesResponse(CustomBaseModel):
+    dependencies: list[CardDependencyItem]
+
+
+class CardDependencyAdd(CustomBaseModel):
+    related_card_id: int
+
+
+class CardSearchResult(CustomBaseModel):
+    id: int
+    card_number: int
+    title: str

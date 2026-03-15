@@ -1,11 +1,12 @@
 ﻿from datetime import datetime
-from sqlalchemy import delete, select, func
+from sqlalchemy import cast, delete, or_, select, func, and_, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
 
 from fastapi import HTTPException
 
 from app.db.models.approver_model import ApproverModel
+from app.db.models.card_dependency_model import CardDependencyModel
 from app.db.models.card_history_model import CardHistoryModel
 from app.db.models.card_model import CardModel
 from app.db.models.list_model import ListModel
@@ -13,7 +14,13 @@ from app.db.models.project_user_model import ProjectUserModel
 from app.db.models.role_model import RoleModel
 from app.db.models.tag_card_model import TagCardModel
 from app.db.models.task_card_model import TaskCardModel
-from app.schemas.card_schema import CardSchemaBase, CardSchemaUp
+from app.schemas.card_schema import (
+    CardDependenciesResponse,
+    CardDependencyItem,
+    CardSchemaBase,
+    CardSchemaUp,
+    CardSearchResult,
+)
 from app.schemas.list_schema import ListSchemaProject
 
 
@@ -288,6 +295,111 @@ class CardRules:
         card = await self._get_card_or_404(card_id)
 
         await self.db_session.delete(card)
+
+        await self.db_session.commit()
+
+    async def search_cards(self, q: str, project_id: int | None) -> list[CardSearchResult]:
+        """
+        Busca cards por título ou número, retornando até 10 resultados.
+        Se project_id for informado, filtra pelo projeto.
+        """
+        query = select(CardModel).join(ListModel, ListModel.id == CardModel.list_id)
+
+        if project_id is not None:
+            query = query.where(ListModel.project_id == project_id)
+
+        # Busca por número exato ou título parcial
+        query = query.where(
+            or_(
+                cast(CardModel.card_number, String).ilike(f"%{q}%"),
+                CardModel.title.ilike(f"%{q}%"),
+            )
+        ).limit(10)
+
+        result = await self.db_session.execute(query)
+        cards = result.scalars().unique().all()
+
+        return [
+            CardSearchResult(id=c.id, card_number=c.card_number, title=c.title)
+            for c in cards
+        ]
+
+    async def get_dependencies(self, card_id: int) -> CardDependenciesResponse:
+        """Retorna os cards relacionados (dependências) deste card."""
+        result = await self.db_session.execute(
+            select(CardDependencyModel).where(CardDependencyModel.card_id == card_id)
+        )
+        deps = result.scalars().unique().all()
+
+        return CardDependenciesResponse(
+            dependencies=[
+                CardDependencyItem(
+                    id=dep.related_card.id,
+                    card_number=dep.related_card.card_number,
+                    title=dep.related_card.title,
+                )
+                for dep in deps
+            ]
+        )
+
+    async def add_dependency(self, card_id: int, related_card_id: int) -> None:
+        """Adiciona um card como dependência. Registra no histórico."""
+        if card_id == related_card_id:
+            raise HTTPException(
+                status_code=400, detail="Um card não pode depender de si mesmo."
+            )
+
+        existing = (
+            await self.db_session.execute(
+                select(CardDependencyModel).where(
+                    and_(
+                        CardDependencyModel.card_id == card_id,
+                        CardDependencyModel.related_card_id == related_card_id,
+                    )
+                )
+            )
+        ).scalars().first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Dependência já existe.")
+
+        related = await self._get_card_or_404(related_card_id)
+
+        self.db_session.add(
+            CardDependencyModel(card_id=card_id, related_card_id=related_card_id)
+        )
+        self.db_session.add(
+            CardHistoryModel(
+                card_id=card_id,
+                action="dependency_added",
+                new_value=f"#{related.card_number} {related.title}",
+            )
+        )
+        await self.db_session.commit()
+
+    async def remove_dependency(self, card_id: int, related_card_id: int) -> None:
+        """Remove uma dependência e registra no histórico."""
+        related_result = await self.db_session.execute(
+            select(CardModel).where(CardModel.id == related_card_id)
+        )
+        related = related_result.scalars().unique().one_or_none()
+
+        await self.db_session.execute(
+            delete(CardDependencyModel).where(
+                and_(
+                    CardDependencyModel.card_id == card_id,
+                    CardDependencyModel.related_card_id == related_card_id,
+                )
+            )
+        )
+
+        if related:
+            self.db_session.add(
+                CardHistoryModel(
+                    card_id=card_id,
+                    action="dependency_removed",
+                    old_value=f"#{related.card_number} {related.title}",
+                )
+            )
 
         await self.db_session.commit()
 
