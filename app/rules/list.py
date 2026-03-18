@@ -89,12 +89,41 @@ class ListRules:
 
     async def delete_list(self, project_id: int, list_id: int, user_id: int):
         await self._check_delete_permission(project_id, user_id)
-        query = select(ListModel).where(
-            ListModel.id == list_id, ListModel.project_id == project_id
+
+        query = (
+            select(ListModel)
+            .options(selectinload(ListModel.cards))
+            .where(ListModel.id == list_id, ListModel.project_id == project_id)
         )
         result = await self.db_session.execute(query)
         lst = result.unique().scalar_one_or_none()
         if not lst:
             raise NoResultFound()
+
+        if lst.cards:
+            target_query = (
+                select(ListModel)
+                .where(
+                    ListModel.project_id == project_id,
+                    ListModel.id != list_id,
+                    ListModel.order < lst.order,
+                )
+                .order_by(ListModel.order.desc())
+                .limit(1)
+            )
+            target_result = await self.db_session.execute(target_query)
+            target_list = target_result.scalar_one_or_none()
+
+            if target_list is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Não é possível excluir esta lista pois não existe uma lista de ordem menor para receber os cards.",
+                )
+
+            for card in lst.cards:
+                card.list_id = target_list.id
+
+            await self.db_session.flush()
+
         await self.db_session.delete(lst)
         await self.db_session.commit()
