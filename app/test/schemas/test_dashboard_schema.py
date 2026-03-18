@@ -1,8 +1,11 @@
 import pytest
 
 from schemas.dashboard_schema import (
+    BurndownPoint,
+    BurndownResponse,
     DashboardCardSchema,
     ListDistribution,
+    MyCardsResponse,
     MyDayResponse,
     PendingApprovalsResponse,
     PriorityDistribution,
@@ -62,17 +65,19 @@ def test_project_stats_response_full():
         by_list=[ListDistribution(list_name="Backlog", is_final=False, count=10)],
         by_priority=[PriorityDistribution(priority=1, count=4)],
         by_tag=[TagDistribution(tag_name="Bug", count=2)],
-        avg_completion_days=3.8,
+        lead_time_days=5.2,
+        cycle_time_days=3.8,
     )
     result = schema.dict()
     assert result["total_cards"] == 10
-    assert result["avg_completion_days"] == 3.8
+    assert result["lead_time_days"] == 5.2
+    assert result["cycle_time_days"] == 3.8
     assert len(result["by_list"]) == 1
     assert len(result["by_priority"]) == 1
     assert len(result["by_tag"]) == 1
 
 
-def test_project_stats_response_avg_completion_none():
+def test_project_stats_response_times_none():
     schema = ProjectStatsResponse(
         total_cards=0,
         by_list=[],
@@ -81,8 +86,9 @@ def test_project_stats_response_avg_completion_none():
     )
     result = schema.dict()
     assert result["total_cards"] == 0
-    # avg_completion_days é None → filtrado pelo CustomBaseModel.dict()
-    assert "avg_completion_days" not in result
+    # lead_time_days e cycle_time_days são None → filtrados pelo CustomBaseModel.dict()
+    assert "lead_time_days" not in result
+    assert "cycle_time_days" not in result
 
 
 def test_project_stats_response_empty_lists():
@@ -156,3 +162,69 @@ def test_my_day_response_empty():
 def test_pending_approvals_response_empty():
     schema = PendingApprovalsResponse(pending=[])
     assert schema.dict() == {"pending": []}
+
+
+# ── MyCardsResponse ───────────────────────────────────────────────────────────
+
+
+def test_my_cards_response_empty():
+    schema = MyCardsResponse(assigned=[], due_today=[], overdue=[], pending_approvals=[])
+    assert schema.dict() == {
+        "assigned": [],
+        "due_today": [],
+        "overdue": [],
+        "pending_approvals": [],
+    }
+
+
+def _make_card(**kwargs):
+    defaults = dict(
+        id=1, card_number=1, title="Test", list_id=1,
+        list_name="Backlog", project_id=1, project_title="Proj",
+    )
+    return DashboardCardSchema(**{**defaults, **kwargs})
+
+
+def test_my_cards_response_with_data():
+    card = _make_card(id=10, title="My task")
+    schema = MyCardsResponse(assigned=[card], due_today=[], overdue=[], pending_approvals=[card])
+    result = schema.dict()
+    assert len(result["assigned"]) == 1
+    assert result["assigned"][0]["title"] == "My task"
+    assert len(result["pending_approvals"]) == 1
+    assert result["due_today"] == []
+    assert result["overdue"] == []
+
+
+# ── BurndownPoint ─────────────────────────────────────────────────────────────
+
+
+def test_burndown_point_schema():
+    point = BurndownPoint(date="2025-01-01", remaining=20, ideal=18.5)
+    result = point.dict()
+    assert result == {"date": "2025-01-01", "remaining": 20, "ideal": 18.5}
+
+
+# ── BurndownResponse ──────────────────────────────────────────────────────────
+
+
+def test_burndown_response_empty_points():
+    schema = BurndownResponse(start="2025-01-01", end="2025-01-14", total=30, points=[])
+    result = schema.dict()
+    assert result["start"] == "2025-01-01"
+    assert result["end"] == "2025-01-14"
+    assert result["total"] == 30
+    assert result["points"] == []
+
+
+def test_burndown_response_with_points():
+    points = [
+        BurndownPoint(date="2025-01-01", remaining=30, ideal=30.0),
+        BurndownPoint(date="2025-01-07", remaining=15, ideal=15.0),
+        BurndownPoint(date="2025-01-14", remaining=0, ideal=0.0),
+    ]
+    schema = BurndownResponse(start="2025-01-01", end="2025-01-14", total=30, points=points)
+    result = schema.dict()
+    assert len(result["points"]) == 3
+    assert result["points"][1]["remaining"] == 15
+    assert result["points"][2]["ideal"] == 0.0

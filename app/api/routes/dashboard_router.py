@@ -7,6 +7,7 @@ from app.core.deps import get_current_user, get_session
 from app.rules.dashboard import DashboardRules
 from app.schemas.dashboard_schema import (
     BurndownResponse,
+    MyCardsResponse,
     MyDayResponse,
     PendingApprovalsResponse,
     ProjectStatsResponse,
@@ -14,6 +15,19 @@ from app.schemas.dashboard_schema import (
 from app.schemas.user_schema import UserSchema
 
 router = APIRouter()
+
+
+@router.get("/my-cards", response_model=MyCardsResponse)
+async def my_cards(
+    current_user: UserSchema = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+):
+    """
+    Retorna de uma vez todos os cards relacionados ao usuário logado:
+    assigned, due_today, overdue e pending_approvals.
+    """
+    rules = DashboardRules(db)
+    return await rules.get_my_cards(current_user.id)
 
 
 @router.get("/my-day", response_model=MyDayResponse)

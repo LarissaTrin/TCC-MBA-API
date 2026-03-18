@@ -16,6 +16,7 @@ from app.schemas.dashboard_schema import (
     BurndownResponse,
     DashboardCardSchema,
     ListDistribution,
+    MyCardsResponse,
     MyDayResponse,
     PendingApprovalsResponse,
     PriorityDistribution,
@@ -89,6 +90,67 @@ class DashboardRules:
 
         return PendingApprovalsResponse(
             pending=[self._to_dashboard_card(c) for c in cards]
+        )
+
+    async def get_my_cards(self, user_id: int) -> MyCardsResponse:
+        """
+        Retorna de uma vez todos os cards relacionados ao usuário:
+        - assigned: cards atribuídos ao usuário (não concluídos)
+        - due_today / overdue: subconjunto dos assigned com data
+        - pending_approvals: cards onde o usuário é aprovador (não concluídos)
+        """
+        today_start = datetime.combine(date.today(), time.min)
+        today_end = datetime.combine(date.today(), time.max)
+
+        # Cards atribuídos ao usuário que não foram concluídos
+        assigned_query = (
+            select(CardModel)
+            .join(CardModel.list)
+            .join(ListModel.project)
+            .where(
+                CardModel.user_id == user_id,
+                CardModel.completed_at.is_(None),
+            )
+            .options(
+                selectinload(CardModel.list).selectinload(ListModel.project),
+                selectinload(CardModel.user),
+            )
+        )
+        assigned_result = await self.db_session.execute(assigned_query)
+        assigned_cards = assigned_result.scalars().unique().all()
+
+        # Cards onde o usuário é aprovador e ainda não concluídos
+        approvals_query = (
+            select(CardModel)
+            .join(CardModel.approvers)
+            .join(CardModel.list)
+            .join(ListModel.project)
+            .where(
+                ApproverModel.user_id == user_id,
+                CardModel.completed_at.is_(None),
+            )
+            .options(
+                selectinload(CardModel.list).selectinload(ListModel.project),
+                selectinload(CardModel.user),
+            )
+        )
+        approvals_result = await self.db_session.execute(approvals_query)
+        approval_cards = approvals_result.scalars().unique().all()
+
+        due_today = [
+            c for c in assigned_cards
+            if c.date and today_start <= c.date <= today_end
+        ]
+        overdue = [
+            c for c in assigned_cards
+            if c.date and c.date < today_start
+        ]
+
+        return MyCardsResponse(
+            assigned=[self._to_dashboard_card(c) for c in assigned_cards],
+            due_today=[self._to_dashboard_card(c) for c in due_today],
+            overdue=[self._to_dashboard_card(c) for c in overdue],
+            pending_approvals=[self._to_dashboard_card(c) for c in approval_cards],
         )
 
     async def get_project_stats(self, project_id: int) -> ProjectStatsResponse:

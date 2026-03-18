@@ -28,6 +28,13 @@ class PendingApprovalsResponse(CustomBaseModel):
     pending: list[DashboardCardSchema]
 
 
+class MyCardsResponse(CustomBaseModel):
+    assigned: list[DashboardCardSchema]
+    due_today: list[DashboardCardSchema]
+    overdue: list[DashboardCardSchema]
+    pending_approvals: list[DashboardCardSchema]
+
+
 class ListDistribution(CustomBaseModel):
     list_name: str
     is_final: bool
