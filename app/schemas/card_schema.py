@@ -18,6 +18,8 @@ class CardSchemaUp(CustomBaseModel):
     title: Optional[str] = None
     user_id: Optional[int] = None
     date: Optional[datetime] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     priority: Optional[int] = None
     description: Optional[str] = None
     planned_hours: Optional[int] = None

@@ -174,6 +174,8 @@ class CardRules:
             "user_id",
             "description",
             "date",
+            "start_date",
+            "end_date",
             "priority",
             "planned_hours",
             "completed_hours",

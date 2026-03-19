@@ -17,6 +17,8 @@ class CardModel(settings.DBBaseModel):
     user_id = Column("userId", Integer, ForeignKey("users.id"), nullable=True)
 
     date = Column("date", DateTime, nullable=True)
+    start_date = Column("startDate", DateTime, nullable=True)
+    end_date = Column("endDate", DateTime, nullable=True)
     completed_at = Column("completedAt", DateTime, nullable=True)
     priority = Column("priority", Integer, nullable=True)
     description = Column("description", String(1000), nullable=True)
