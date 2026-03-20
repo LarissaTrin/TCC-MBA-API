@@ -2,6 +2,7 @@
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy import or_
 
 from fastapi.exceptions import HTTPException
 from fastapi import status
@@ -409,6 +410,50 @@ class ProjectRules:
 
         await self.db_session.commit()
         return InviteUsersResponse(results=results)
+
+    async def search_project_members(
+        self, project_id: int, current_user_id: int, query: str
+    ) -> list[UserModel]:
+        """
+        Busca membros de um projeto cujo nome ou e-mail contenha o termo informado.
+
+        Args:
+            project_id (int): ID do projeto.
+            current_user_id (int): ID do usuário fazendo a busca (deve ser membro).
+            query (str): Termo de busca (nome, sobrenome ou e-mail).
+
+        Returns:
+            list[UserModel]: Até 10 usuários correspondentes.
+
+        Raises:
+            HTTPException 403: Se o usuário não for membro do projeto.
+        """
+        member_check = await self.db_session.execute(
+            select(ProjectUserModel.user_id).where(
+                ProjectUserModel.project_id == project_id,
+                ProjectUserModel.user_id == current_user_id,
+            )
+        )
+        if member_check.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Você não é membro deste projeto.",
+            )
+
+        result = await self.db_session.execute(
+            select(UserModel)
+            .join(ProjectUserModel, UserModel.id == ProjectUserModel.user_id)
+            .where(
+                ProjectUserModel.project_id == project_id,
+                or_(
+                    UserModel.firstName.ilike(f"%{query}%"),
+                    UserModel.lastName.ilike(f"%{query}%"),
+                    UserModel.email.ilike(f"%{query}%"),
+                ),
+            )
+            .limit(10)
+        )
+        return list(result.scalars().all())
 
     async def remove_project_member(
         self, project_id: int, user_id_to_remove: int, current_user_id: int

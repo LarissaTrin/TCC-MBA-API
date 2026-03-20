@@ -1,5 +1,7 @@
 ﻿from typing import Optional
 
+from pydantic import EmailStr
+
 from app.schemas.base import CustomBaseModel
 from app.schemas.user_schema import UserSchemaBase
 from app.schemas.role_schema import RoleSchemaBase
@@ -14,3 +16,10 @@ class ProjectUserSchemaBase(CustomBaseModel):
 class ProjectUserSchema(ProjectUserSchemaBase):
     user: Optional[UserSchemaBase] = None
     role: Optional[RoleSchemaBase] = None
+
+
+class ProjectMemberSearchItem(CustomBaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    email: EmailStr

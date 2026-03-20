@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, status
+﻿from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.exceptions import HTTPException
 
@@ -10,7 +10,7 @@ from app.schemas.project_schema import (
     ProjectSchemaBase,
     ProjectSchemaUp,
 )
-from app.schemas.project_user_schema import ProjectUserSchemaBase
+from app.schemas.project_user_schema import ProjectUserSchemaBase, ProjectMemberSearchItem
 from app.core.deps import get_current_user, get_session
 from app.rules.project import ProjectRules
 from app.schemas.user_schema import UserSchema
@@ -104,6 +104,30 @@ async def remove_project_member(
         user_id_to_remove=member_user_id,
         current_user_id=current_user.id,
     )
+
+
+@router.get("/{project_id}/members/search", response_model=list[ProjectMemberSearchItem])
+async def search_project_members(
+    project_id: int,
+    q: str = Query(min_length=1),
+    db: AsyncSession = Depends(get_session),
+    current_user: UserSchema = Depends(get_current_user),
+):
+    rules = ProjectRules(db)
+    users = await rules.search_project_members(
+        project_id=project_id,
+        current_user_id=current_user.id,
+        query=q,
+    )
+    return [
+        ProjectMemberSearchItem(
+            id=u.id,
+            first_name=u.firstName,
+            last_name=u.lastName,
+            email=u.email,
+        )
+        for u in users
+    ]
 
 
 @router.put("/{project_id}/users")

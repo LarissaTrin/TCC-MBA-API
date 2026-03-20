@@ -217,7 +217,10 @@ class CardRules:
             for approver_data in data.approvers:
                 if approver_data.id and approver_data.id in existing_approvers:
                     approver = existing_approvers[approver_data.id]
-                    approver.user_id = approver_data.user_id
+                    if approver_data.environment is not None:
+                        approver.environment = approver_data.environment
+                    if approver_data.user_id is not None:
+                        approver.user_id = approver_data.user_id
                     received_ids.add(approver_data.id)
                 else:
                     new_approver = ApproverModel(
@@ -241,8 +244,14 @@ class CardRules:
             for task_data in data.tasks_card:
                 if task_data.id and task_data.id in existing_tasks:
                     task = existing_tasks[task_data.id]
-                    task.description = task_data.description
-                    task.completed = task_data.completed
+                    if task_data.title is not None:
+                        task.title = task_data.title
+                    if task_data.completed is not None:
+                        task.completed = task_data.completed
+                    if task_data.user_id is not None:
+                        task.user_id = task_data.user_id
+                    if task_data.date is not None:
+                        task.date = task_data.date
                     received_ids.add(task_data.id)
                 else:
                     new_task = TaskCardModel(
