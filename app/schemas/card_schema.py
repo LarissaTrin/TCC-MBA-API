@@ -76,3 +76,10 @@ class CardSearchResult(CustomBaseModel):
     id: int
     card_number: int
     title: str
+
+
+class CardPageResponse(CustomBaseModel):
+    cards: list[CardSchema]
+    total: int
+    page: int
+    has_more: bool

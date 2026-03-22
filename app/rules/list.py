@@ -1,4 +1,5 @@
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload, joinedload
@@ -8,6 +9,7 @@ from app.db.models.card_model import CardModel
 from app.db.models.list_model import ListModel
 from app.db.models.project_user_model import ProjectUserModel
 from app.db.models.role_model import RoleModel
+from app.db.models.tag_card_model import TagCardModel
 from app.schemas.list_schema import ListSchemaUp
 
 # Roles com permissão de criar/atualizar listas
@@ -49,6 +51,47 @@ class ListRules:
                 status_code=403,
                 detail="Apenas SuperAdmin e Admin podem deletar listas.",
             )
+
+    async def get_lists_slim(self, project_id: int) -> list[ListModel]:
+        """Return lists without cards — used for the initial board load."""
+        query = (
+            select(ListModel)
+            .where(ListModel.project_id == project_id)
+            .order_by(ListModel.order)
+        )
+        result = await self.db_session.execute(query)
+        return result.unique().scalars().all()
+
+    async def get_cards_for_list_paginated(
+        self, list_id: int, page: int = 1, limit: int = 20
+    ) -> dict:
+        """Return cards for a list with offset-based pagination."""
+        offset = (page - 1) * limit
+
+        count_q = select(func.count()).where(CardModel.list_id == list_id)
+        total = (await self.db_session.execute(count_q)).scalar()
+
+        cards_q = (
+            select(CardModel)
+            .options(
+                joinedload(CardModel.user),
+                selectinload(CardModel.tag_cards).joinedload(TagCardModel.tag),
+                selectinload(CardModel.tasks_card),
+            )
+            .where(CardModel.list_id == list_id)
+            .order_by(CardModel.card_number)
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db_session.execute(cards_q)
+        cards = result.unique().scalars().all()
+
+        return {
+            "cards": cards,
+            "total": total,
+            "page": page,
+            "has_more": (offset + len(cards)) < total,
+        }
 
     async def get_lists_for_project(self, project_id: int) -> list[ListModel]:
         query = (

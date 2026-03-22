@@ -23,6 +23,10 @@ class ListSchema(ListSchemaBase):
     cards: Optional[list[CardSchema]] = []
 
 
+class ListSchemaSlim(ListSchemaBase):
+    id: int
+
+
 class ListSchemaProject(ListSchemaBase):
     id: int
     project_id: int
