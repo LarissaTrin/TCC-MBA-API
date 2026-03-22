@@ -79,7 +79,7 @@ class ListRules:
                 selectinload(CardModel.tasks_card),
             )
             .where(CardModel.list_id == list_id)
-            .order_by(CardModel.card_number)
+            .order_by(CardModel.sort_order.nulls_last(), CardModel.card_number)
             .offset(offset)
             .limit(limit)
         )

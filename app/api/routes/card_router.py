@@ -8,6 +8,7 @@ from app.schemas.card_schema import (
     CardDependenciesResponse,
     CardDependencyAdd,
     CardHistorySchema,
+    CardReorderRequest,
     CardSchema,
     CardSchemaBase,
     CardSchemaUp,
@@ -71,6 +72,19 @@ async def get_card_by_id(
         raise HTTPException(
             status_code=404, detail=f"Card id={card_id} not found."
         )
+
+
+@router.put("/reorder", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_cards(
+    body: CardReorderRequest,
+    current_user: UserSchema = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_session),
+):
+    """
+    Bulk-updates sort_order for multiple cards at once (table view reorder).
+    """
+    rules = CardRules(db_session)
+    await rules.bulk_reorder(body.items)
 
 
 @router.put("/{card_id}", response_model=CardSchema)

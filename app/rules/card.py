@@ -18,6 +18,7 @@ from app.db.models.task_card_model import TaskCardModel
 from app.schemas.card_schema import (
     CardDependenciesResponse,
     CardDependencyItem,
+    CardReorderItem,
     CardSchemaBase,
     CardSchemaUp,
     CardSearchResult,
@@ -183,6 +184,7 @@ class CardRules:
             "story_points",
             "list_id",
             "blocked",
+            "sort_order",
         ]:
             if (value := getattr(data, field)) is not None:
                 setattr(card, field, value)
@@ -303,6 +305,21 @@ class CardRules:
         await self.db_session.commit()
         await self.db_session.refresh(card)
         return card
+
+    async def bulk_reorder(self, items: list[CardReorderItem]) -> None:
+        """Updates sort_order for multiple cards in a single transaction."""
+        if not items:
+            return
+        card_ids = [item.card_id for item in items]
+        result = await self.db_session.execute(
+            select(CardModel).where(CardModel.id.in_(card_ids))
+        )
+        cards_by_id = {c.id: c for c in result.unique().scalars().all()}
+        for item in items:
+            card = cards_by_id.get(item.card_id)
+            if card:
+                card.sort_order = item.sort_order
+        await self.db_session.commit()
 
     async def get_card_history(self, card_id: int) -> list[CardHistoryModel]:
         """

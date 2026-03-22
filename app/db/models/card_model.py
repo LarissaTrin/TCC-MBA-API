@@ -26,6 +26,7 @@ class CardModel(settings.DBBaseModel):
     completed_hours = Column("completedHours", Integer, nullable=True)
     story_points = Column("storyPoints", Integer, nullable=True)
     blocked = Column("blocked", Boolean, nullable=False, default=False)
+    sort_order = Column("sortOrder", Integer, nullable=True)
 
     # relationships
     user = relationship("UserModel", lazy="joined")

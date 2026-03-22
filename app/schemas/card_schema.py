@@ -27,11 +27,21 @@ class CardSchemaUp(CustomBaseModel):
     story_points: Optional[int] = None
     list_id: Optional[int] = None
     blocked: Optional[bool] = None
+    sort_order: Optional[int] = None
 
     tag_cards: list[TagCardSchemaBase] = None
     approvers: list[ApproverSchemaBase] = None
     comments: list[CommentCreateSchema] = None
     tasks_card: list[TaskCardSchemaBase] = None
+
+
+class CardReorderItem(CustomBaseModel):
+    card_id: int
+    sort_order: int
+
+
+class CardReorderRequest(CustomBaseModel):
+    items: list[CardReorderItem]
 
 
 class CardSchema(CardSchemaUp):
