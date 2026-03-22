@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
 
@@ -22,13 +22,13 @@ router = APIRouter()
 async def create_card(
     card_data: CardSchemaBase,
     list_id: int = Path(
-        ..., title="ID da lista", description="ID da lista onde o card será criado"
+        ..., title="List ID", description="ID of the list where the card will be created"
     ),
     current_user: UserSchema = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_session),
 ):
     """
-    Cria um novo card em uma lista específica.
+    Creates a new card in a specific list.
     """
     rules = CardRules(db_session)
 
@@ -41,13 +41,13 @@ async def create_card(
 
 @router.get("/search", response_model=list[CardSearchResult])
 async def search_cards(
-    q: str = Query(..., description="Busca por título ou número do card"),
-    project_id: int = Query(None, description="Filtra por projeto (opcional)"),
+    q: str = Query(..., description="Search by card title or number"),
+    project_id: int = Query(None, description="Filter by project (optional)"),
     current_user: UserSchema = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_session),
 ):
     """
-    Busca cards por título ou número, retornando até 10 resultados.
+    Searches cards by title or number, returning up to 10 results.
     """
     rules = CardRules(db_session)
     return await rules.search_cards(q, project_id)
@@ -60,7 +60,7 @@ async def get_card_by_id(
     db_session: AsyncSession = Depends(get_session),
 ):
     """
-    Retorna um card por ID com seus relacionamentos.
+    Returns a card by ID with its relationships.
     """
     rules = CardRules(db_session)
 
@@ -69,7 +69,7 @@ async def get_card_by_id(
         return card
     except NoResultFound:
         raise HTTPException(
-            status_code=404, detail=f"Card com id={card_id} não encontrado."
+            status_code=404, detail=f"Card id={card_id} not found."
         )
 
 
@@ -81,7 +81,7 @@ async def update_card(
     db_session: AsyncSession = Depends(get_session),
 ):
     """
-    Atualiza um card e seus relacionamentos.
+    Updates a card and its relationships.
     """
     rules = CardRules(db_session)
 
@@ -90,7 +90,7 @@ async def update_card(
         return updated_card
     except NoResultFound:
         raise HTTPException(
-            status_code=404, detail=f"Card com id={card_id} não encontrado."
+            status_code=404, detail=f"Card id={card_id} not found."
         )
 
 
@@ -101,7 +101,7 @@ async def get_card_history(
     db_session: AsyncSession = Depends(get_session),
 ):
     """
-    Retorna o histórico de eventos de um card (movimentações, atribuições, etc.).
+    Returns the event history of a card (moves, assignments, priority changes, etc.).
     """
     rules = CardRules(db_session)
     return await rules.get_card_history(card_id)
@@ -113,7 +113,7 @@ async def get_card_dependencies(
     current_user: UserSchema = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_session),
 ):
-    """Retorna os cards relacionados (dependências) deste card."""
+    """Returns related cards (dependencies) for this card."""
     rules = CardRules(db_session)
     return await rules.get_dependencies(card_id)
 
@@ -125,7 +125,7 @@ async def add_card_dependency(
     current_user: UserSchema = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_session),
 ):
-    """Adiciona um card como dependência."""
+    """Adds a card as a dependency."""
     rules = CardRules(db_session)
     await rules.add_dependency(card_id, body.related_card_id)
 
@@ -140,7 +140,7 @@ async def remove_card_dependency(
     current_user: UserSchema = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_session),
 ):
-    """Remove uma dependência do card."""
+    """Removes a dependency from the card."""
     rules = CardRules(db_session)
     await rules.remove_dependency(card_id, related_card_id)
 
@@ -152,7 +152,7 @@ async def delete_card(
     db_session: AsyncSession = Depends(get_session),
 ):
     """
-    Deleta um card e seus relacionamentos. Apenas SuperAdmin do projeto pode deletar.
+    Deletes a card and its relationships. Only SuperAdmin or Admin can delete cards.
     """
     rules = CardRules(db_session)
 
@@ -160,5 +160,5 @@ async def delete_card(
         await rules.delete_card(card_id, user_id=current_user.id)
     except NoResultFound:
         raise HTTPException(
-            status_code=404, detail=f"Card com id={card_id} não encontrado."
+            status_code=404, detail=f"Card id={card_id} not found."
         )

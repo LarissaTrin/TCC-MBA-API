@@ -62,7 +62,7 @@ async def update_list(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except NoResultFound:
-        raise HTTPException(status_code=404, detail="Lista não encontrada")
+        raise HTTPException(status_code=404, detail="List not found")
 
 
 @router.delete("/{list_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -78,4 +78,4 @@ async def delete_list(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except NoResultFound:
-        raise HTTPException(status_code=404, detail="Lista não encontrada")
+        raise HTTPException(status_code=404, detail="List not found")

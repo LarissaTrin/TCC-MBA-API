@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +24,7 @@ class UserRules:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Dados de acesso incorretos",
+                detail="Invalid credentials.",
             )
 
         access_token = self.token_service.create_access_token(sub=user.id)
@@ -43,27 +43,27 @@ class UserRules:
 
     async def create_user(self, user_data: UserSchemaCreate) -> UserModel:
         """
-        Cria um novo usuário após verificar se o e-mail ou username já foram cadastrados.
+        Creates a new user after checking that the email and username are not taken.
 
         Args:
-            user_data (UserSchemaCreate): Dados do novo usuário.
+            user_data (UserSchemaCreate): Data for the new user.
 
         Returns:
-            UserModel: Usuário criado com sucesso.
+            UserModel: The newly created user.
 
         Raises:
-            HTTPException: Se o e-mail ou username já existirem.
+            HTTPException: If the email or username already exist.
         """
-        # Verifica e-mail
+        # Check email
         email_query = select(UserModel).where(UserModel.email == user_data.email)
         result = await self.db_session.execute(email_query)
         if result.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="E-mail já registrado.",
+                detail="Email already registered.",
             )
 
-        # Verifica username
+        # Check username
         username_query = select(UserModel).where(
             UserModel.username == user_data.username
         )
@@ -71,7 +71,7 @@ class UserRules:
         if result.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Username já registrado.",
+                detail="Username already registered.",
             )
 
         new_user = UserModel(
@@ -93,37 +93,37 @@ class UserRules:
             await self.db_session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Erro ao criar usuário.",
+                detail="Error creating user.",
             )
 
         except Exception:
             await self.db_session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Erro inesperado ao criar usuário.",
+                detail="Unexpected error creating user.",
             )
 
     async def update_user(
         self, user_id: int, current_user_id: int, data: UserSchemaUp
     ) -> UserModel:
         """
-        Atualiza os dados de um usuário, apenas se for o próprio usuário logado.
+        Updates a user's data. Only the authenticated user can edit their own account.
 
         Args:
-            user_id (int): ID do usuário a ser editado.
-            current_user_id (int): ID do usuário autenticado.
-            data (UserSchemaUp): Dados a serem atualizados.
+            user_id (int): ID of the user to be edited.
+            current_user_id (int): ID of the authenticated user.
+            data (UserSchemaUp): Fields to update.
 
         Returns:
-            UserModel: Usuário atualizado.
+            UserModel: The updated user.
 
         Raises:
-            HTTPException: Caso não seja o próprio usuário ou haja conflito de dados.
+            HTTPException: If the user tries to edit someone else's account or there is a data conflict.
         """
         if user_id != current_user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Você só pode editar sua própria conta.",
+                detail="You can only edit your own account.",
             )
 
         query = select(UserModel).where(UserModel.id == user_id)
@@ -131,19 +131,19 @@ class UserRules:
         user = result.scalar_one_or_none()
 
         if not user:
-            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+            raise HTTPException(status_code=404, detail="User not found.")
 
-        # Verificar se novo e-mail já está em uso
+        # Check if new email is already taken
         if data.email and data.email != user.email:
             email_query = select(UserModel).where(UserModel.email == data.email)
             result = await self.db_session.execute(email_query)
             if result.scalar_one_or_none():
                 raise HTTPException(
                     status_code=409,
-                    detail="E-mail já está em uso por outro usuário.",
+                    detail="Email already in use by another user.",
                 )
 
-        # Atualizar campos
+        # Update fields
         if data.first_name is not None:
             user.firstName = data.first_name
         if data.last_name is not None:
@@ -163,33 +163,33 @@ class UserRules:
             await self.db_session.rollback()
             raise HTTPException(
                 status_code=400,
-                detail="Erro ao atualizar o usuário.",
+                detail="Error updating user.",
             )
         except Exception:
             await self.db_session.rollback()
             raise HTTPException(
                 status_code=500,
-                detail="Erro inesperado ao atualizar o usuário.",
+                detail="Unexpected error updating user.",
             )
 
     async def get_user_by_id(self, user_id: int, current_user_id: int) -> UserModel:
         """
-        Busca um usuário pelo ID, mas só permite acessar se for o próprio usuário logado.
+        Fetches a user by ID. Only the authenticated user can access their own data.
 
         Args:
-            user_id (int): ID do usuário que se quer buscar.
-            current_user_id (int): ID do usuário autenticado (logado).
+            user_id (int): ID of the user to retrieve.
+            current_user_id (int): ID of the authenticated user.
 
         Returns:
-            UserModel: Usuário encontrado.
+            UserModel: The found user.
 
         Raises:
-            HTTPException: Se tentar acessar usuário diferente do logado ou usuário não existir.
+            HTTPException: If attempting to access another user or the user does not exist.
         """
         if user_id != current_user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permissão negada para acessar outro usuário.",
+                detail="Permission denied to access another user.",
             )
 
         query = select(UserModel).where(UserModel.id == user_id)
@@ -199,23 +199,23 @@ class UserRules:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Usuário não encontrado.",
+                detail="User not found.",
             )
 
         return user
 
     async def get_user_by_email(self, email: str) -> UserModel:
         """
-        Retorna um usuário pelo e-mail.
+        Returns a user by email address.
 
         Args:
-            email (str): E-mail do usuário.
+            email (str): The user's email.
 
         Returns:
-            UserModel: Usuário encontrado.
+            UserModel: The found user.
 
         Raises:
-            HTTPException: Se o e-mail não estiver registrado.
+            HTTPException: If no user is registered with this email.
         """
         query = select(UserModel).where(UserModel.email == email)
         result = await self.db_session.execute(query)
@@ -224,7 +224,7 @@ class UserRules:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Usuário não encontrado com este e-mail.",
+                detail="No user found with this email.",
             )
 
         return user
@@ -234,7 +234,7 @@ class UserRules:
         result = await self.db_session.execute(query)
         user = result.scalar_one_or_none()
         if not user:
-            return  # Silenciosamente ignora para evitar brute-force
+            return  # Silently ignore to prevent brute-force attacks
 
         access_token = self.token_service.create_access_token(sub=user.id, minutes=60)
 
@@ -242,8 +242,8 @@ class UserRules:
         reset_link = f"{front_url}/login/change-password/{access_token}"
         send_email(
             to=email,
-            subject="Redefinição de senha",
-            body=f"Clique no link para redefinir sua senha: {reset_link}",
+            subject="Password Reset",
+            body=f"Click the link to reset your password: {reset_link}",
         )
 
     async def reset_password(self, user_id: int, new_password: str):
@@ -252,7 +252,7 @@ class UserRules:
         user = result.scalar_one_or_none()
 
         if not user:
-            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+            raise HTTPException(status_code=404, detail="User not found.")
 
         user.password = generator_hash_password(new_password)
         await self.db_session.commit()

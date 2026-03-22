@@ -12,9 +12,9 @@ from app.db.models.role_model import RoleModel
 from app.db.models.tag_card_model import TagCardModel
 from app.schemas.list_schema import ListSchemaUp
 
-# Roles com permissão de criar/atualizar listas
+# Roles allowed to create/update lists
 _CAN_MANAGE_LISTS = {"SuperAdmin", "Admin", "Leader"}
-# Roles com permissão de deletar listas
+# Roles allowed to delete lists
 _CAN_DELETE_LISTS = {"SuperAdmin", "Admin"}
 
 
@@ -35,21 +35,21 @@ class ListRules:
         return result.scalar_one_or_none()
 
     async def _check_manage_permission(self, project_id: int, user_id: int):
-        """SuperAdmin, Admin e Leader podem criar/atualizar listas."""
+        """SuperAdmin, Admin, and Leader can create/update lists."""
         role = await self._get_role(project_id, user_id)
         if role not in _CAN_MANAGE_LISTS:
             raise HTTPException(
                 status_code=403,
-                detail="Apenas SuperAdmin, Admin e Leader podem gerenciar listas.",
+                detail="Only SuperAdmin, Admin, and Leader can manage lists.",
             )
 
     async def _check_delete_permission(self, project_id: int, user_id: int):
-        """Apenas SuperAdmin e Admin podem deletar listas."""
+        """Only SuperAdmin and Admin can delete lists."""
         role = await self._get_role(project_id, user_id)
         if role not in _CAN_DELETE_LISTS:
             raise HTTPException(
                 status_code=403,
-                detail="Apenas SuperAdmin e Admin podem deletar listas.",
+                detail="Only SuperAdmin and Admin can delete lists.",
             )
 
     async def get_lists_slim(self, project_id: int) -> list[ListModel]:
@@ -165,7 +165,7 @@ class ListRules:
             if target_list is None:
                 raise HTTPException(
                     status_code=409,
-                    detail="Não é possível excluir esta lista pois não existe uma lista de ordem menor para receber os cards.",
+                    detail="Cannot delete this list because there is no list with a lower order to receive its cards.",
                 )
 
             for card in lst.cards:

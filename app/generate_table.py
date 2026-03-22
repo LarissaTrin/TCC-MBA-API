@@ -7,6 +7,20 @@ from app.db.conection import engine, Session
 from app.db.models.role_model import RoleModel
 
 
+def _guard_against_production() -> None:
+    """Impede execução acidental contra o banco de produção."""
+    if not settings.TEST_MODE:
+        raise RuntimeError(
+            "\n"
+            "╔══════════════════════════════════════════════════════════╗\n"
+            "║  BLOQUEADO — generate_table.py apaga TODO o banco!       ║\n"
+            "║                                                          ║\n"
+            "║  TEST_MODE=False indica banco de PRODUÇÃO.               ║\n"
+            "║  Defina TEST_MODE=True no .env para rodar localmente.    ║\n"
+            "╚══════════════════════════════════════════════════════════╝"
+        )
+
+
 async def create_tables() -> None:
     import app.db.models.__all_models
 
@@ -50,4 +64,5 @@ async def seed_roles():
 if __name__ == "__main__":
     import asyncio
 
+    _guard_against_production()
     asyncio.run(create_tables())

@@ -131,7 +131,7 @@ async def forgot_password(
     rules = UserRules(db_session)
     await rules.forgot_password(data.email)
     return {
-        "message": "Se o e-mail existir, você receberá um link para redefinir a senha."
+        "message": "If the email exists, you will receive a password reset link."
     }
 
 
@@ -143,4 +143,4 @@ async def reset_password(
 ):
     rules = UserRules(db_session)
     await rules.reset_password(current_user.id, data.new_password)
-    return {"message": "Senha redefinida com sucesso."}
+    return {"message": "Password reset successfully."}

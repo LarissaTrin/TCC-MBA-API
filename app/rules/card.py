@@ -31,27 +31,27 @@ class CardRules:
 
     async def add_card(self, list_id: int, card_data: CardSchemaBase) -> int:
         """
-        Adiciona um novo card à lista especificada, atribuindo automaticamente
-        o número do card com base na quantidade total de cards do projeto.
+        Adds a new card to the specified list, automatically assigning the card
+        number based on the total number of cards in the project.
 
         Args:
-            list_id (int): ID da lista onde o card será adicionado.
-            card_data (CardSchemaBase): Dados do card (sem precisar do card_number).
+            list_id (int): ID of the list where the card will be added.
+            card_data (CardSchemaBase): Card data (card_number is assigned automatically).
 
         Returns:
-            int: ID do novo card criado.
+            int: ID of the newly created card.
         """
-        # Verifica se a lista existe e busca o project_id
+        # Check if the list exists and retrieve project_id
         list_query = select(ListModel).where(ListModel.id == list_id)
         result = await self.db_session.execute(list_query)
         list_obj: ListSchemaProject | None = result.scalars().unique().one_or_none()
 
         if not list_obj:
-            raise NoResultFound(f"Lista com id={list_id} não encontrada.")
+            raise NoResultFound(f"List id={list_id} not found.")
 
         project_id = list_obj.project_id
 
-        # Conta todos os cards do projeto (todas as listas ligadas ao projeto)
+        # Count all cards in the project (across all lists)
         count_query = (
             select(func.count(CardModel.id))
             .join(ListModel, ListModel.id == CardModel.list_id)
@@ -79,16 +79,16 @@ class CardRules:
 
     async def get_card_by_id(self, card_id: int) -> CardModel:
         """
-        Busca um card pelo ID com todos os relacionamentos já definidos no modelo.
+        Fetches a card by ID with all defined relationships loaded.
 
         Args:
-            card_id (int): ID do card a ser buscado.
+            card_id (int): ID of the card to retrieve.
 
         Returns:
-            CardModel: Card encontrado com os relacionamentos carregados.
+            CardModel: The found card with relationships loaded.
 
         Raises:
-            NoResultFound: Se nenhum card com o ID for encontrado.
+            NoResultFound: If no card with the given ID exists.
         """
         card = await self._get_card_or_404(card_id)
 
@@ -96,23 +96,23 @@ class CardRules:
 
     async def update_card(self, card_id: int, data: CardSchemaUp) -> CardModel:
         """
-        Atualiza um card com campos simples e relacionamentos (tags, approvers, tasks).
+        Updates a card's simple fields and relationships (tags, approvers, tasks).
 
-        Atualiza registros existentes, cria novos e remove os ausentes.
+        Updates existing records, creates new ones, and removes absent entries.
 
         Args:
-            card_id (int): ID do card a ser atualizado.
-            data (CardSchemaUp): Dados recebidos para atualização.
+            card_id (int): ID of the card to update.
+            data (CardSchemaUp): Data received for the update.
 
         Returns:
-            CardModel: Instância atualizada do card.
+            CardModel: Updated card instance.
 
         Raises:
-            NoResultFound: Se o card não existir.
+            NoResultFound: If the card does not exist.
         """
         card = await self._get_card_or_404(card_id)
 
-        # --- Detectar mudança de lista para Audit Log e completed_at ---
+        # --- Detect list change for audit log and completed_at ---
         if data.list_id is not None and data.list_id != card.list_id:
             old_list_result = await self.db_session.execute(
                 select(ListModel).where(ListModel.id == card.list_id)
@@ -125,10 +125,10 @@ class CardRules:
             new_list = new_list_result.scalars().unique().one_or_none()
 
             if new_list:
-                # Preenche completed_at ao entrar na lista final; limpa ao sair
+                # Set completed_at when entering the final list; clear it when leaving
                 card.completed_at = datetime.utcnow() if new_list.is_final else None
 
-                # Grava no histórico
+                # Record in history
                 self.db_session.add(
                     CardHistoryModel(
                         card_id=card.id,
@@ -144,7 +144,7 @@ class CardRules:
                 CardHistoryModel(
                     card_id=card.id,
                     action="assigned",
-                    old_value=str(card.user_id) if card.user_id else "Não atribuído",
+                    old_value=str(card.user_id) if card.user_id else "Unassigned",
                     new_value=str(data.user_id),
                 )
             )
@@ -154,7 +154,7 @@ class CardRules:
                 CardHistoryModel(
                     card_id=card.id,
                     action="priority_changed",
-                    old_value=str(card.priority) if card.priority is not None else "Sem prioridade",
+                    old_value=str(card.priority) if card.priority is not None else "No priority",
                     new_value=str(data.priority),
                 )
             )
@@ -164,12 +164,12 @@ class CardRules:
                 CardHistoryModel(
                     card_id=card.id,
                     action="due_date_changed",
-                    old_value=card.date.strftime("%d/%m/%Y") if card.date else "Sem data",
-                    new_value=data.date.strftime("%d/%m/%Y"),
+                    old_value=card.date.strftime("%Y-%m-%d") if card.date else "No date",
+                    new_value=data.date.strftime("%Y-%m-%d"),
                 )
             )
 
-        # --- Atualizar campos simples ---
+        # --- Update simple fields ---
         for field in [
             "title",
             "user_id",
@@ -306,13 +306,13 @@ class CardRules:
 
     async def get_card_history(self, card_id: int) -> list[CardHistoryModel]:
         """
-        Retorna o histórico de eventos de um card em ordem cronológica decrescente.
+        Returns the event history of a card in reverse chronological order.
 
         Args:
-            card_id (int): ID do card.
+            card_id (int): ID of the card.
 
         Returns:
-            list[CardHistoryModel]: Eventos registrados (moved, assigned, priority_changed, due_date_changed).
+            list[CardHistoryModel]: Recorded events (moved, assigned, priority_changed, due_date_changed).
         """
         query = (
             select(CardHistoryModel)
@@ -324,16 +324,16 @@ class CardRules:
 
     async def delete_card(self, card_id: int, user_id: int) -> None:
         """
-        Remove um card e seus relacionamentos (tags, approvers, tasks).
-        Apenas SuperAdmin do projeto pode deletar.
+        Deletes a card and its relationships (tags, approvers, tasks).
+        Only SuperAdmin or Admin of the project can delete cards.
 
         Args:
-            card_id (int): ID do card a ser removido.
-            user_id (int): ID do usuário que solicita a remoção.
+            card_id (int): ID of the card to delete.
+            user_id (int): ID of the user requesting the deletion.
 
         Raises:
-            NoResultFound: Se o card não existir.
-            HTTPException: Se o usuário não for SuperAdmin.
+            NoResultFound: If the card does not exist.
+            HTTPException: If the user is not SuperAdmin or Admin.
         """
         await self._check_delete_permission(card_id, user_id)
         card = await self._get_card_or_404(card_id)
@@ -344,15 +344,15 @@ class CardRules:
 
     async def search_cards(self, q: str, project_id: int | None) -> list[CardSearchResult]:
         """
-        Busca cards por título ou número, retornando até 10 resultados.
-        Se project_id for informado, filtra pelo projeto.
+        Searches cards by title or number, returning up to 10 results.
+        If project_id is provided, filters by project.
         """
         query = select(CardModel).join(ListModel, ListModel.id == CardModel.list_id)
 
         if project_id is not None:
             query = query.where(ListModel.project_id == project_id)
 
-        # Busca por número exato ou título parcial
+        # Search by exact number or partial title
         query = query.where(
             or_(
                 cast(CardModel.card_number, String).ilike(f"%{q}%"),
@@ -390,7 +390,7 @@ class CardRules:
         """Adiciona um card como dependência. Registra no histórico."""
         if card_id == related_card_id:
             raise HTTPException(
-                status_code=400, detail="Um card não pode depender de si mesmo."
+                status_code=400, detail="A card cannot depend on itself."
             )
 
         existing = (
@@ -404,7 +404,7 @@ class CardRules:
             )
         ).scalars().first()
         if existing:
-            raise HTTPException(status_code=400, detail="Dependência já existe.")
+            raise HTTPException(status_code=400, detail="Dependency already exists.")
 
         related = await self._get_card_or_404(related_card_id)
 
@@ -449,7 +449,7 @@ class CardRules:
 
     async def _check_delete_permission(self, card_id: int, user_id: int) -> None:
         """
-        Verifica se o usuário é SuperAdmin ou Admin do projeto ao qual o card pertence.
+        Checks whether the user is SuperAdmin or Admin of the project the card belongs to.
         """
         query = (
             select(RoleModel.name)
@@ -473,5 +473,5 @@ class CardRules:
         result = await self.db_session.execute(query)
         card = result.scalars().unique().one_or_none()
         if not card:
-            raise NoResultFound(f"Card com id={card_id} não encontrado.")
+            raise NoResultFound(f"Card id={card_id} not found.")
         return card

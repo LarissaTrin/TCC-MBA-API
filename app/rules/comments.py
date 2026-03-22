@@ -1,4 +1,4 @@
-﻿from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 
@@ -15,28 +15,28 @@ class CommentRules:
         self, card_id: int, comment_data: CommentCreateSchema, user_id: int
     ) -> CommentModel:
         """
-        Adiciona um comentário ao card.
+        Adds a comment to a card.
 
         Args:
-            card_id (int): ID do card a ser comentado.
-            comment_data (CommentCreateSchema): Dados do comentário.
-            user_id (int): ID do usuário autor do comentário.
+            card_id (int): ID of the card to comment on.
+            comment_data (CommentCreateSchema): Comment data.
+            user_id (int): ID of the comment author.
 
         Returns:
-            CommentModel: Comentário criado.
+            CommentModel: The created comment.
 
         Raises:
-            NoResultFound: Se o card não for encontrado.
+            NoResultFound: If the card is not found.
         """
-        # Verifica se o card existe
+        # Check if the card exists
         result = await self.db_session.execute(
             select(CardModel).where(CardModel.id == card_id)
         )
-        card = result.unique().scalar_one_or_none()  # <-- Corrigido aqui
+        card = result.unique().scalar_one_or_none()
         if not card:
-            raise NoResultFound(f"Card com id={card_id} não encontrado.")
+            raise NoResultFound(f"Card id={card_id} not found.")
 
-        # Cria e persiste o comentário
+        # Create and persist the comment
         comment = CommentModel(
             description=comment_data.description,
             user_id=user_id,
@@ -52,29 +52,29 @@ class CommentRules:
         self, comment_id: int, new_description: str, user_id: int
     ) -> CommentModel:
         """
-        Atualiza a descrição de um comentário se o usuário for o autor.
+        Updates a comment's description if the user is the author.
 
         Args:
-            comment_id (int): ID do comentário.
-            new_description (str): Novo conteúdo do comentário.
-            user_id (int): ID do usuário que está tentando editar.
+            comment_id (int): ID of the comment.
+            new_description (str): New comment content.
+            user_id (int): ID of the user attempting to edit.
 
         Returns:
-            CommentModel: Comentário atualizado.
+            CommentModel: The updated comment.
 
         Raises:
-            NoResultFound: Se o comentário não existir.
-            PermissionError: Se o usuário não for o autor do comentário.
+            NoResultFound: If the comment does not exist.
+            PermissionError: If the user is not the comment author.
         """
         result = await self.db_session.execute(
             select(CommentModel).where(CommentModel.id == comment_id)
         )
         comment = result.unique().scalar_one_or_none()
         if not comment:
-            raise NoResultFound(f"Comentário com id={comment_id} não encontrado.")
+            raise NoResultFound(f"Comment id={comment_id} not found.")
 
         if comment.user_id != user_id:
-            raise PermissionError("Você não tem permissão para editar este comentário.")
+            raise PermissionError("You do not have permission to edit this comment.")
 
         comment.description = new_description
         await self.db_session.commit()
@@ -83,26 +83,26 @@ class CommentRules:
 
     async def delete_comment(self, comment_id: int, user_id: int) -> None:
         """
-        Remove um comentário se o usuário for o autor.
+        Deletes a comment if the user is the author.
 
         Args:
-            comment_id (int): ID do comentário.
-            user_id (int): ID do usuário que está tentando deletar.
+            comment_id (int): ID of the comment.
+            user_id (int): ID of the user attempting to delete.
 
         Raises:
-            NoResultFound: Se o comentário não existir.
-            PermissionError: Se o usuário não for o autor do comentário.
+            NoResultFound: If the comment does not exist.
+            PermissionError: If the user is not the comment author.
         """
         result = await self.db_session.execute(
             select(CommentModel).where(CommentModel.id == comment_id)
         )
         comment = result.unique().scalar_one_or_none()
         if not comment:
-            raise NoResultFound(f"Comentário com id={comment_id} não encontrado.")
+            raise NoResultFound(f"Comment id={comment_id} not found.")
 
         if comment.user_id != user_id:
             raise PermissionError(
-                "Você não tem permissão para excluir este comentário."
+                "You do not have permission to delete this comment."
             )
 
         await self.db_session.delete(comment)

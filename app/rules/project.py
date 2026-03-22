@@ -1,4 +1,4 @@
-﻿from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import NoResultFound
@@ -31,32 +31,32 @@ class ProjectRules:
 
     async def add_project(self, project: ProjectSchemaBase, creator_id: int) -> int:
         """
-        Adiciona um novo projeto e insere o criador como superAdmin no projeto.
+        Creates a new project and adds the creator as SuperAdmin.
 
         Args:
-            project (ProjectSchemaBase): Dados do projeto.
-            creator_id (int): ID do usuário criador.
+            project (ProjectSchemaBase): Project data.
+            creator_id (int): ID of the user creating the project.
 
         Returns:
-            int: ID do projeto criado.
+            int: ID of the created project.
         """
         try:
-            # Criação do projeto
+            # Create the project
             project_model = ProjectModel(**project.dict(), creator_id=creator_id)
             self.db_session.add(project_model)
             await self.db_session.commit()
             await self.db_session.refresh(project_model)
 
-            # Busca o ID da role "superAdmin"
+            # Fetch the ID of the "SuperAdmin" role
             result = await self.db_session.execute(
                 select(RoleModel.id).where(RoleModel.name == "SuperAdmin")
             )
             role_id = result.scalar_one_or_none()
 
             if role_id is None:
-                raise ValueError("Role 'superAdmin' não encontrada.")
+                raise ValueError("Role 'SuperAdmin' not found.")
 
-            # Criação da associação ProjectUser
+            # Create the ProjectUser association
             project_user = ProjectUserModel(
                 user_id=creator_id, project_id=project_model.id, role_id=role_id
             )
@@ -73,18 +73,17 @@ class ProjectRules:
         self, project_id: int, user_id: int
     ) -> ProjectModel | None:
         """
-        Busca um projeto pelo ID somente se o usuário estiver associado a ele.
+        Fetches a project by ID only if the user is associated with it.
 
         Args:
-            project_id (int): ID do projeto a ser buscado.
-            user_id (int): ID do usuário que deve estar associado ao projeto.
+            project_id (int): ID of the project.
+            user_id (int): ID of the user that must be associated with the project.
 
         Returns:
-            ProjectModel | None: Retorna o projeto com todos os relacionamentos carregados
-            se o usuário estiver associado, ou None caso contrário.
+            ProjectModel | None: The project with all relationships loaded, or None.
 
         Raises:
-            NoResultFound: Se o projeto não existir ou usuário não estiver associado.
+            NoResultFound: If the project does not exist or the user is not associated.
         """
         query = (
             select(ProjectModel)
@@ -96,12 +95,10 @@ class ProjectRules:
                 ),
                 selectinload(ProjectModel.project_users).selectinload(
                     ProjectUserModel.user
-                ),  # <-- importante
-                # selectinload(ProjectModel.tags),  # se usar tags
+                ),
+                # selectinload(ProjectModel.tags),  # enable if using tags
             )
-            .join(
-                ProjectModel.project_users
-            )  # Assumindo relacionamento com ProjectUserModel
+            .join(ProjectModel.project_users)
             .where(ProjectModel.id == project_id, ProjectUserModel.user_id == user_id)
         )
 
@@ -110,20 +107,20 @@ class ProjectRules:
 
         if not project:
             raise NoResultFound(
-                f"Projeto com id={project_id} não encontrado para o usuário id={user_id}"
+                f"Project id={project_id} not found for user id={user_id}"
             )
 
         return project
 
     async def get_projects_for_user(self, user_id: int) -> list[ProjectModel]:
         """
-        Retorna a lista de projetos associados a um usuário, apenas com id e title.
+        Returns the list of projects associated with a user (id and title only).
 
         Args:
-            user_id (int): ID do usuário.
+            user_id (int): ID of the user.
 
         Returns:
-            list[ProjectModel]: Lista de ProjectModel com 'id' e 'title' dos projetos.
+            list[ProjectModel]: List of ProjectModel with 'id' and 'title'.
         """
         query = (
             select(ProjectModel.id, ProjectModel.title, ProjectModel.description)
@@ -140,21 +137,21 @@ class ProjectRules:
         self, project_id: int, data: ProjectSchemaUp
     ) -> ProjectModel:
         """
-        Atualiza um projeto existente com os dados fornecidos.
+        Updates an existing project with the provided data.
 
-        Atualiza o título, a descrição e a lista de tarefas (lists) associadas ao projeto.
-        As listas podem ser atualizadas, criadas ou removidas conforme os dados recebidos.
+        Updates the title, description, and lists associated with the project.
+        Lists can be updated, created, or removed according to the received data.
 
         Args:
-            project_id (int): ID do projeto a ser atualizado.
-            data (ProjectSchemaUp): Dados a serem atualizados no projeto, podendo incluir
-                o título, a descrição e uma lista de tarefas com ou sem ID.
+            project_id (int): ID of the project to update.
+            data (ProjectSchemaUp): Data to update, which may include title,
+                description, and a list of sections with or without IDs.
 
         Returns:
-            ProjectModel: O modelo do projeto atualizado, com listas carregadas.
+            ProjectModel: The updated project model with lists loaded.
 
         Raises:
-            Exception: Se o projeto com o ID fornecido não for encontrado.
+            Exception: If the project with the given ID is not found.
         """
         query = (
             select(ProjectModel)
@@ -174,31 +171,31 @@ class ProjectRules:
         result = await self.db_session.execute(query)
         project = result.scalars().unique().one_or_none()
         if not project:
-            raise Exception(f"Projeto {project_id} não encontrado")
+            raise Exception(f"Project {project_id} not found")
 
-        # Atualizar title e description
+        # Update title and description
         if data.title is not None:
             project.title = data.title
         if data.description is not None:
             project.description = data.description
 
-        # Atualizar listas
+        # Update lists
         if data.lists is not None:
-            # Mapeia listas atuais por id
+            # Map existing lists by id
             existing_lists = {lst.id: lst for lst in project.lists}
 
-            # IDs recebidos para controle do que fica/remover
+            # Track received IDs to detect removals
             received_ids = set()
 
             for list_data in data.lists:
                 if list_data.id is not None and list_data.id in existing_lists:
-                    # Atualiza lista existente
+                    # Update existing list
                     existing_list = existing_lists[list_data.id]
                     existing_list.name = list_data.name
                     existing_list.order = list_data.order
                     received_ids.add(list_data.id)
                 else:
-                    # Cria nova lista
+                    # Create new list
                     new_list = ListModel(
                         name=list_data.name,
                         order=list_data.order,
@@ -206,7 +203,7 @@ class ProjectRules:
                     )
                     self.db_session.add(new_list)
 
-            # Opcional: remover listas que não foram enviadas
+            # Remove lists not included in the request
             for lst in project.lists:
                 if lst.id not in received_ids:
                     await self.db_session.delete(lst)
@@ -218,23 +215,23 @@ class ProjectRules:
 
     async def delete_project(self, project_id: int, user_id: int) -> None:
         """
-        Remove um projeto do banco de dados, desde que o usuário seja o criador.
+        Deletes a project from the database. Only the creator is allowed to do this.
 
         Args:
-            project_id (int): ID do projeto a ser removido.
-            user_id (int): ID do usuário solicitante.
+            project_id (int): ID of the project to delete.
+            user_id (int): ID of the requesting user.
 
         Raises:
-            Exception: Se o projeto não existir ou o usuário não for o criador.
+            Exception: If the project does not exist or the user is not the creator.
         """
         query = select(ProjectModel).where(ProjectModel.id == project_id)
         result = await self.db_session.execute(query)
         project = result.scalars().one_or_none()
 
         if not project:
-            raise Exception(f"Projeto com id={project_id} não encontrado.")
+            raise Exception(f"Project id={project_id} not found.")
         if project.creator_id != user_id:
-            raise Exception("Usuário não autorizado a deletar este projeto.")
+            raise Exception("User not authorized to delete this project.")
 
         await self.db_session.delete(project)
         await self.db_session.commit()
@@ -246,18 +243,18 @@ class ProjectRules:
         current_user_id: int,
     ) -> None:
         """
-        Atualiza os usuários associados a um projeto, permitindo apenas se o usuário atual for 'Admin' ou 'SuperAdmin'.
+        Updates the users associated with a project. Only Admin or SuperAdmin can do this.
 
         Args:
-            project_id (int): ID do projeto.
-            users_data (list[ProjectUserSchemaBase]): Lista de usuários a adicionar/atualizar/remover.
-            current_user_id (int): ID do usuário que está tentando fazer a operação.
+            project_id (int): ID of the project.
+            users_data (list[ProjectUserSchemaBase]): Users to add, update, or remove.
+            current_user_id (int): ID of the user performing the operation.
 
         Raises:
-            PermissionError: Se o usuário não for 'Admin' nem 'SuperAdmin'.
-            Exception: Se o projeto não for encontrado.
+            PermissionError: If the user is neither Admin nor SuperAdmin.
+            Exception: If the project is not found.
         """
-        # Verifica se o usuário atual é Admin ou SuperAdmin no projeto
+        # Check if the current user is Admin or SuperAdmin in the project
         role_query = (
             select(RoleModel.name)
             .join(ProjectUserModel, RoleModel.id == ProjectUserModel.role_id)
@@ -271,10 +268,10 @@ class ProjectRules:
 
         if role_name not in {"Admin", "SuperAdmin"}:
             raise PermissionError(
-                "Somente Admins ou SuperAdmins podem editar usuários do projeto."
+                "Only Admins or SuperAdmins can edit project users."
             )
 
-        # Carrega o projeto e seus usuários
+        # Load project and its users
         project_query = (
             select(ProjectModel)
             .options(selectinload(ProjectModel.project_users))
@@ -284,7 +281,7 @@ class ProjectRules:
         project = result.scalars().unique().one_or_none()
 
         if not project:
-            raise Exception(f"Projeto com id={project_id} não encontrado.")
+            raise Exception(f"Project id={project_id} not found.")
 
         existing_users = {user.id: user for user in project.project_users if user.id}
         received_ids = set()
@@ -303,7 +300,7 @@ class ProjectRules:
                 )
                 self.db_session.add(new_user)
 
-        # Remove usuários que não foram enviados na nova lista
+        # Remove users not included in the updated list
         for user in project.project_users:
             if user.id not in received_ids:
                 await self.db_session.delete(user)
@@ -330,19 +327,19 @@ class ProjectRules:
         current_user_id: int,
     ) -> InviteUsersResponse:
         """
-        Convida usuários por email para um projeto. Apenas SuperAdmin e Admin podem convidar.
-        Se o email existir no banco, adiciona com o role especificado.
-        Se não existir, envia email de convite.
-        Roles permitidos ao convidar: User, Leader, Admin (nunca SuperAdmin).
+        Invites users to a project by email. Only SuperAdmin and Admin can invite.
+        If the email exists in the database, the user is added with the specified role.
+        If not, an invitation email is sent.
+        Allowed roles for invites: User, Leader, Admin (never SuperAdmin).
         """
         caller_role = await self._get_user_role_in_project(project_id, current_user_id)
         if caller_role not in {"SuperAdmin", "Admin"}:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Apenas SuperAdmin e Admin podem convidar membros.",
+                detail="Only SuperAdmin and Admin can invite members.",
             )
 
-        # Carrega todos os role_ids de uma vez
+        # Load all role IDs at once
         roles_result = await self.db_session.execute(select(RoleModel))
         roles_map: dict[str, int] = {
             r.name: r.id for r in roles_result.scalars().all()
@@ -350,7 +347,7 @@ class ProjectRules:
 
         allowed_invite_roles = {"User", "Leader", "Admin"}
 
-        # Busca membros atuais do projeto
+        # Fetch current project members
         existing_members_result = await self.db_session.execute(
             select(ProjectUserModel.user_id).where(
                 ProjectUserModel.project_id == project_id
@@ -364,7 +361,7 @@ class ProjectRules:
             email = invite["email"]
             role_name = invite.get("role", "User")
 
-            # Garante que não se pode atribuir SuperAdmin por convite
+            # Ensure SuperAdmin cannot be assigned via invite
             if role_name not in allowed_invite_roles:
                 role_name = "User"
 
@@ -397,11 +394,11 @@ class ProjectRules:
                 front_url = settings.FRONT_URL
                 send_email(
                     to=email,
-                    subject="Você foi convidado para o sistema de gerenciamento",
+                    subject="You've been invited to the project management system",
                     body=(
-                        f"Olá!\n\n{inviter_name} convidou você para participar de um projeto "
-                        f"no sistema de gerenciamento.\n\n"
-                        f"Você ainda não possui uma conta. Crie sua conta em:\n"
+                        f"Hello!\n\n{inviter_name} has invited you to join a project "
+                        f"on the project management system.\n\n"
+                        f"You don't have an account yet. Create one at:\n"
                         f"{front_url}/login/register"
                     ),
                 )
@@ -416,18 +413,18 @@ class ProjectRules:
         self, project_id: int, current_user_id: int, query: str
     ) -> list[UserModel]:
         """
-        Busca membros de um projeto cujo nome ou e-mail contenha o termo informado.
+        Searches project members whose name or email contains the given term.
 
         Args:
-            project_id (int): ID do projeto.
-            current_user_id (int): ID do usuário fazendo a busca (deve ser membro).
-            query (str): Termo de busca (nome, sobrenome ou e-mail).
+            project_id (int): ID of the project.
+            current_user_id (int): ID of the user performing the search (must be a member).
+            query (str): Search term (first name, last name, or email).
 
         Returns:
-            list[UserModel]: Até 10 usuários correspondentes.
+            list[UserModel]: Up to 10 matching users.
 
         Raises:
-            HTTPException 403: Se o usuário não for membro do projeto.
+            HTTPException 403: If the user is not a project member.
         """
         member_check = await self.db_session.execute(
             select(ProjectUserModel.user_id).where(
@@ -438,7 +435,7 @@ class ProjectRules:
         if member_check.scalar_one_or_none() is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Você não é membro deste projeto.",
+                detail="You are not a member of this project.",
             )
 
         result = await self.db_session.execute(
@@ -460,21 +457,21 @@ class ProjectRules:
         self, project_id: int, user_id_to_remove: int, current_user_id: int
     ) -> None:
         """
-        Remove um membro do projeto. Apenas SuperAdmin e Admin podem remover.
-        O SuperAdmin não pode ser removido.
+        Removes a member from the project. Only SuperAdmin and Admin can remove members.
+        The SuperAdmin (project creator) cannot be removed.
         """
         role_name = await self._get_user_role_in_project(project_id, current_user_id)
         if role_name not in {"SuperAdmin", "Admin"}:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Apenas SuperAdmin e Admin podem remover membros.",
+                detail="Only SuperAdmin and Admin can remove members.",
             )
 
         target_role = await self._get_user_role_in_project(project_id, user_id_to_remove)
         if target_role == "SuperAdmin":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="O criador do projeto não pode ser removido.",
+                detail="The project creator cannot be removed.",
             )
 
         result = await self.db_session.execute(
@@ -487,23 +484,22 @@ class ProjectRules:
         if not member:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Membro não encontrado no projeto.",
+                detail="Member not found in the project.",
             )
 
         await self.db_session.delete(member)
         await self.db_session.commit()
 
-
     async def get_project_tags(self, project_id: int, search: str | None = None) -> list[TagModel]:
         """
-        Retorna todas as tags do projeto.
+        Returns all tags for a project.
 
         Args:
-            project_id (int): ID do projeto.
-            search (str | None): Filtro opcional por nome (case-insensitive).
+            project_id (int): ID of the project.
+            search (str | None): Optional case-insensitive name filter.
 
         Returns:
-            list[TagModel]: Lista de tags do projeto.
+            list[TagModel]: List of project tags.
         """
         query = select(TagModel).where(TagModel.projectId == project_id)
         if search:

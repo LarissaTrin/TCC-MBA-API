@@ -1,94 +1,172 @@
-# FastAPI Project
+# Kanban Project Manager — Back-end
 
-This is a FastAPI project configured to run in a Python virtual environment, connected to a local PostgreSQL database using Docker.
+API REST do sistema de gerenciamento de projetos no estilo Kanban. Desenvolvida em Python com FastAPI + PostgreSQL.
 
-## Requirements
+---
 
-- **Python 3.8+**
-- **pip** (Python package manager)
-- **Docker Desktop** (Required to run the local database container)
-- **FastAPI**, **Uvicorn**, and **SQLAlchemy**
+## Stack
 
-## How to Set Up the Environment
+| Camada         | Tecnologia                    |
+|----------------|-------------------------------|
+| Framework      | FastAPI                       |
+| Banco de dados | PostgreSQL                    |
+| ORM            | SQLAlchemy (assíncrono)       |
+| Autenticação   | JWT (`python-jose`)           |
+| Hash de senha  | Bcrypt (`passlib`)            |
+| Servidor       | Uvicorn (porta 8000)          |
+| E-mail         | SMTP                          |
 
-### 1. Navigate to the Project Directory
-First, ensure you are in the correct project directory:
+---
+
+## Ambientes
+
+| Ambiente | Banco | Como rodar |
+|----------|-------|------------|
+| **Local** | PostgreSQL via Docker | Siga os passos abaixo |
+| **Produção** | Supabase (PostgreSQL) | Deploy no Render via GitHub |
+
+---
+
+## Como Rodar Localmente
+
+### 1. Navegue até o diretório do projeto
+
 ```bash
-cd TCC-MBA-API # Adjust based on your repository folder name
+cd Back-end
 ```
 
-### 2. Configure Environment Variables
-Create a `.env` file in the root directory of the project and add the necessary environment variables:
+### 2. Configure as variáveis de ambiente
+
+Crie um arquivo `.env` dentro de `Back-end/app/`:
+
 ```env
-SECRET_KEY=your_super_secret_key_here
+SECRET_KEY=qualquer_chave_secreta_local
+ALGORITHM=HS256
 TEST_MODE=True
-DB_URL_TEST="postgresql+asyncpg://postgres:admin@localhost:5432/faculdade-test"
+DB_URL_TEST=postgresql+asyncpg://postgres:admin@localhost:5432/faculdade-test
+DB_URL=postgresql+asyncpg://postgres:admin@localhost:5432/faculdade-test
+EMAIL=seu@email.com
+EMAIL_PASSWORD=sua_senha_de_app
+FRONT_URL=http://localhost:3000
 ```
 
-### 3. Create the Virtual Environment
-Run the following command to create the virtual environment:
+> **TEST_MODE=True** faz a aplicação usar `DB_URL_TEST` (banco local via Docker).
+> Em produção no Render, `TEST_MODE=False` e `DB_URL` aponta para o Supabase.
+
+### 3. Crie e ative o ambiente virtual
+
 ```bash
+# Criar
 python -m venv .venv
-```
 
-### 4. Activate the Virtual Environment
-Activate the environment based on your terminal:
-```bash
-# For Windows PowerShell
+# Ativar — Windows PowerShell
 .\.venv\Scripts\Activate
 
-# For Windows Command Prompt
+# Ativar — Windows Command Prompt
 .venv\Scripts\activate
 
-# For Linux/macOS
+# Ativar — macOS/Linux
 source .venv/bin/activate
 ```
 
-### 5. Install Dependencies
-With the virtual environment activated, install the required packages:
+### 4. Instale as dependências
+
 ```bash
 pip install --no-cache-dir -r requirements.txt
 ```
 
-## Database Setup & Execution
+### 5. Suba o banco de dados local
 
-### 6. Start the Local Database
-Ensure Docker Desktop is running in the background. Then, start the PostgreSQL container using Docker Compose:
+Certifique-se de que o Docker Desktop está aberto. Depois execute:
+
 ```bash
 docker compose up -d
 ```
 
-### 7. Generate Local Tables and Roles
-Once the database container is running, execute the table generation script. **Note:** Run this script as a module to avoid import path issues:
+Isso sobe um container PostgreSQL na porta `5432` com as credenciais configuradas no `.env`.
+
+### 6. Crie as tabelas e roles no banco local
+
+> **ATENÇÃO:** Este script apaga e recria todo o banco. Use **somente** com `TEST_MODE=True` apontando para o banco local.
+
 ```bash
 python -m app.generate_table
 ```
 
-### 8. Run the Server
-Finally, start the FastAPI application using Uvicorn:
-```bash
-uvicorn app.main:app --reload
-```
-The application will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
-
-## Documentation
-Interactive API documentation (Swagger UI) will be available at: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-
-## Project Structure
+### 7. Suba o servidor
 
 ```bash
-.
-├── app/
-│   ├── main.py            # Main FastAPI application file
-│   ├── core/              # Settings and configurations
-│   ├── db/                # Database connections and models
-│   └── generate_table.py  # Local table generation and seed script
-├── docker-compose.yml     # Local database container configuration
-├── requirements.txt       # Project dependencies
-├── .env                   # Environment variables (ignored in version control)
-├── .venv/                 # Virtual environment (ignored in version control)
-└── README.md              # This file
+uvicorn app.main:app --reload --port 8000
 ```
 
-## Contributing
-To contribute, please fork the project, make your changes, and submit a pull request.
+A aplicação estará disponível em: `http://localhost:8000`
+
+**Swagger UI (documentação interativa):** `http://localhost:8000/docs`
+
+> O Swagger só aparece em ambiente local. Em produção ele é desabilitado por segurança.
+
+---
+
+## Arquitetura
+
+```
+Rotas (api/routes/)
+    └── Regras de negócio (rules/)
+            └── Banco de dados (db/models/)
+```
+
+- **Routes** — recebem requisições HTTP e delegam para as Rules
+- **Rules** — lógica de negócio; acessam os Models
+- **Schemas** (Pydantic) — validação de entrada e saída
+- **Core** — JWT, bcrypt, dependências, e-mail, configurações
+
+---
+
+## Estrutura de Arquivos
+
+```
+Back-end/
+├── run.py                        # Ponto de entrada (inicia Uvicorn)
+├── requirements.txt
+├── docker-compose.yml            # Container PostgreSQL local
+└── app/
+    ├── .env                      # Variáveis de ambiente (não vai ao Git)
+    ├── main.py                   # Instância FastAPI, CORS, routers
+    ├── generate_table.py         # Reset e seed do banco LOCAL
+    ├── api/
+    │   ├── api.py                # Agrega todos os routers em /api
+    │   └── routes/
+    │       ├── user_router.py        # /api/users
+    │       ├── project_router.py     # /api/projects
+    │       ├── list_router.py        # /api/projects/{id}/lists
+    │       ├── card_router.py        # /api/cards
+    │       └── comments_router.py    # /api/comments
+    ├── core/
+    │   ├── configs.py            # Settings via variáveis de ambiente
+    │   ├── auth.py               # Geração e validação de JWT
+    │   ├── security.py           # Hash de senha (bcrypt)
+    │   ├── deps.py               # get_session, get_current_user
+    │   └── email.py              # Envio de e-mails SMTP
+    ├── db/
+    │   ├── conection.py          # Engine assíncrona SQLAlchemy
+    │   └── models/               # ORM models (um por tabela)
+    ├── rules/                    # Lógica de negócio por domínio
+    └── schemas/                  # Pydantic schemas (validação I/O)
+```
+
+---
+
+## Endpoints principais
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/api/users/login` | Login (retorna JWT) |
+| POST | `/api/users/` | Cadastro |
+| GET | `/api/projects/` | Lista projetos do usuário |
+| POST | `/api/projects/` | Cria projeto |
+| GET | `/api/projects/{id}/lists/` | Lista colunas do kanban |
+| POST | `/api/cards/{list_id}` | Cria card |
+| PUT | `/api/cards/{card_id}` | Atualiza card |
+| POST | `/api/users/forgot-password` | Solicitar redefinição de senha |
+
+Documentação completa no Swagger (apenas local): `http://localhost:8000/docs`

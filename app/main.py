@@ -1,4 +1,6 @@
-﻿from fastapi import FastAPI
+﻿import os
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -6,7 +8,14 @@ from app.core.configs import settings
 from app.api.api import api_router
 from app.db.conection import engine
 
-app = FastAPI(title="TCC API")
+IS_PRODUCTION = os.getenv("RENDER") is not None  # Render injeta essa var automaticamente
+
+app = FastAPI(
+    title="TCC API",
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
+    openapi_url=None if IS_PRODUCTION else "/openapi.json",
+)
 
 
 @app.on_event("startup")
@@ -31,9 +40,9 @@ async def create_new_tables():
 app.include_router(api_router, prefix=settings.API_STR)
 
 origins = [
-    "http://localhost:3000",  # Next.js local
-    "http://127.0.0.1:3000",  # alternativa local
-    "https://seu-frontend.com.br",  # (caso tenha um ambiente de produção)
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://trindade-to-do-list.vercel.app",
 ]
 
 # Middleware de CORS
