@@ -182,6 +182,7 @@ class CardRules:
             "completed_hours",
             "story_points",
             "list_id",
+            "blocked",
         ]:
             if (value := getattr(data, field)) is not None:
                 setattr(card, field, value)
@@ -277,20 +278,24 @@ class CardRules:
                     if task_data.completed is not None:
                         task.completed = task_data.completed
                     if task_data.user_id is not None:
-                        task.user_id = task_data.user_id
+                        task.userId = task_data.user_id
                     if task_data.date is not None:
                         task.date = task_data.date
                     received_ids.add(task_data.id)
                 else:
                     new_task = TaskCardModel(
-                        **task_data.dict(exclude={"id"}), card_id=card.id
+                        title=task_data.title,
+                        date=task_data.date,
+                        completed=task_data.completed or False,
+                        userId=task_data.user_id,
+                        cardId=card.id,
                     )
                     self.db_session.add(new_task)
 
             if existing_tasks:
                 await self.db_session.execute(
                     delete(TaskCardModel).where(
-                        TaskCardModel.card_id == card.id,
+                        TaskCardModel.cardId == card.id,
                         TaskCardModel.id.notin_(received_ids),
                     )
                 )

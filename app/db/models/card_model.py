@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func
+﻿from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
 
 from app.core.configs import settings
@@ -25,6 +25,7 @@ class CardModel(settings.DBBaseModel):
     planned_hours = Column("plannedHours", Integer, nullable=True)
     completed_hours = Column("completedHours", Integer, nullable=True)
     story_points = Column("storyPoints", Integer, nullable=True)
+    blocked = Column("blocked", Boolean, nullable=False, default=False)
 
     # relationships
     user = relationship("UserModel", lazy="joined")

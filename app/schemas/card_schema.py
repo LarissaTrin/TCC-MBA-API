@@ -26,6 +26,7 @@ class CardSchemaUp(CustomBaseModel):
     completed_hours: Optional[int] = None
     story_points: Optional[int] = None
     list_id: Optional[int] = None
+    blocked: Optional[bool] = None
 
     tag_cards: list[TagCardSchemaBase] = None
     approvers: list[ApproverSchemaBase] = None
