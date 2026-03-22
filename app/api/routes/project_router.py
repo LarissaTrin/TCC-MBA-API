@@ -10,6 +10,7 @@ from app.schemas.project_schema import (
     ProjectSchemaBase,
     ProjectSchemaUp,
 )
+from app.schemas.tag_schema import TagSchema
 from app.schemas.project_user_schema import ProjectUserSchemaBase, ProjectMemberSearchItem
 from app.core.deps import get_current_user, get_session
 from app.rules.project import ProjectRules
@@ -128,6 +129,20 @@ async def search_project_members(
         )
         for u in users
     ]
+
+
+@router.get("/{project_id}/tags", response_model=list[TagSchema])
+async def get_project_tags(
+    project_id: int,
+    q: str | None = Query(None),
+    db: AsyncSession = Depends(get_session),
+    current_user: UserSchema = Depends(get_current_user),
+):
+    """
+    Retorna todas as tags do projeto. Aceita `?q=` para filtrar por nome.
+    """
+    rules = ProjectRules(db)
+    return await rules.get_project_tags(project_id, search=q)
 
 
 @router.put("/{project_id}/users")

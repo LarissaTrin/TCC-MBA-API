@@ -13,6 +13,7 @@ from app.db.models.list_model import ListModel
 from app.db.models.project_user_model import ProjectUserModel
 from app.db.models.role_model import RoleModel
 from app.db.models.tag_card_model import TagCardModel
+from app.db.models.tag_model import TagModel
 from app.db.models.task_card_model import TaskCardModel
 from app.schemas.card_schema import (
     CardDependenciesResponse,
@@ -187,27 +188,54 @@ class CardRules:
 
         # --- Tags ---
         if data.tag_cards is not None:
-            existing_tags = {tag.id: tag for tag in card.tag_cards if tag.id}
-            received_ids = set()
+            # Get project_id so we can create new tags scoped to this project
+            list_result = await self.db_session.execute(
+                select(ListModel).where(ListModel.id == card.list_id)
+            )
+            card_list = list_result.scalars().unique().one_or_none()
+            project_id = card_list.project_id if card_list else None
 
+            # Delete all existing tag_cards for this card and re-create
+            await self.db_session.execute(
+                delete(TagCardModel).where(TagCardModel.cardId == card.id)
+            )
+
+            seen_tag_ids: set[int] = set()
             for tag_data in data.tag_cards:
-                if tag_data.id and tag_data.id in existing_tags:
-                    tag = existing_tags[tag_data.id]
-                    tag.tag_id = tag_data.tag_id
-                    received_ids.add(tag_data.id)
-                else:
-                    new_tag = TagCardModel(
-                        **tag_data.dict(exclude={"id"}), card_id=card.id
-                    )
-                    self.db_session.add(new_tag)
+                tag_id: int | None = None
 
-            if existing_tags:
-                await self.db_session.execute(
-                    delete(TagCardModel).where(
-                        TagCardModel.card_id == card.id,
-                        TagCardModel.id.notin_(received_ids),
+                if tag_data.name and project_id:
+                    # Name takes priority: find existing tag or create a new one.
+                    # Never trust tag_id from frontend (may be a fake Date.now() timestamp).
+                    tag_result = await self.db_session.execute(
+                        select(TagModel).where(
+                            TagModel.name == tag_data.name,
+                            TagModel.projectId == project_id,
+                        )
                     )
-                )
+                    existing_tag = tag_result.scalars().unique().one_or_none()
+
+                    if existing_tag:
+                        tag_id = existing_tag.id
+                    else:
+                        new_tag_model = TagModel(
+                            name=tag_data.name, projectId=project_id
+                        )
+                        self.db_session.add(new_tag_model)
+                        await self.db_session.flush()
+                        tag_id = new_tag_model.id
+                elif not tag_data.name:
+                    # No name — trust tag_id only if it is a valid int32
+                    raw = tag_data.tag_id
+                    if raw and 0 < raw <= 2_147_483_647:
+                        tag_id = raw
+                # else: name present but no project_id — skip (cannot scope tag)
+
+                if tag_id is not None and tag_id not in seen_tag_ids:
+                    seen_tag_ids.add(tag_id)
+                    self.db_session.add(
+                        TagCardModel(tagId=tag_id, cardId=card.id)
+                    )
 
         # --- Approvers ---
         if data.approvers is not None:

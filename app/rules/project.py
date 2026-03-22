@@ -11,6 +11,7 @@ from app.core.configs import settings
 from app.core.email import send_email
 from app.db.models.list_model import ListModel
 from app.db.models.project_model import ProjectModel
+from app.db.models.tag_model import TagModel
 from app.db.models.project_user_model import ProjectUserModel
 from app.db.models.role_model import RoleModel
 from app.db.models.user_model import UserModel
@@ -491,3 +492,21 @@ class ProjectRules:
 
         await self.db_session.delete(member)
         await self.db_session.commit()
+
+
+    async def get_project_tags(self, project_id: int, search: str | None = None) -> list[TagModel]:
+        """
+        Retorna todas as tags do projeto.
+
+        Args:
+            project_id (int): ID do projeto.
+            search (str | None): Filtro opcional por nome (case-insensitive).
+
+        Returns:
+            list[TagModel]: Lista de tags do projeto.
+        """
+        query = select(TagModel).where(TagModel.projectId == project_id)
+        if search:
+            query = query.where(TagModel.name.ilike(f"%{search}%"))
+        result = await self.db_session.execute(query.order_by(TagModel.name))
+        return result.scalars().unique().all()

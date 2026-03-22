@@ -13,4 +13,4 @@ class TagCardModel(settings.DBBaseModel):
 
     # relationships
     card = relationship("CardModel", back_populates="tag_cards", lazy="joined")
-    tag = relationship("TagModel")
+    tag = relationship("TagModel", lazy="joined")

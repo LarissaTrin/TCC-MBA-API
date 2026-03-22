@@ -1,9 +1,10 @@
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import NoResultFound
 
+from app.db.models.card_model import CardModel
 from app.db.models.list_model import ListModel
 from app.db.models.project_user_model import ProjectUserModel
 from app.db.models.role_model import RoleModel
@@ -52,7 +53,11 @@ class ListRules:
     async def get_lists_for_project(self, project_id: int) -> list[ListModel]:
         query = (
             select(ListModel)
-            .options(selectinload(ListModel.cards))
+            .options(
+                selectinload(ListModel.cards).options(
+                    joinedload(CardModel.user),
+                )
+            )
             .where(ListModel.project_id == project_id)
         )
         result = await self.db_session.execute(query)
