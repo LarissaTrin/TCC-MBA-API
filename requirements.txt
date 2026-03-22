@@ -16,4 +16,4 @@ python-jose
 python-multipart
 email_validator
 pytz
-bcrypt
+bcrypt==4.0.1
