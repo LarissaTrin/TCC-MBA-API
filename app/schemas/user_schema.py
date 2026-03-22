@@ -63,4 +63,5 @@ class ForgotPasswordRequest(CustomBaseModel):
 
 
 class ResetPasswordRequest(CustomBaseModel):
+    token: str
     new_password: str

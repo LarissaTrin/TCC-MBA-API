@@ -236,17 +236,22 @@ class UserRules:
         if not user:
             return  # Silently ignore to prevent brute-force attacks
 
-        access_token = self.token_service.create_access_token(sub=user.id, minutes=60)
+        reset_token = self.token_service.create_reset_token(sub=user.id)
 
         front_url = settings.FRONT_URL
-        reset_link = f"{front_url}/login/change-password/{access_token}"
+        reset_link = f"{front_url}/login/change-password/{reset_token}"
         send_email(
             to=email,
             subject="Password Reset",
             body=f"Click the link to reset your password: {reset_link}",
         )
 
-    async def reset_password(self, user_id: int, new_password: str):
+    async def reset_password_with_token(self, token: str, new_password: str):
+        try:
+            user_id = self.token_service.verify_reset_token(token)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
         query = select(UserModel).where(UserModel.id == user_id)
         result = await self.db_session.execute(query)
         user = result.scalar_one_or_none()

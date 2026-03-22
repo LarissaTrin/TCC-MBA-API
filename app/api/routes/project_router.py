@@ -60,8 +60,7 @@ async def update_project(
     current_user: UserSchema = Depends(get_current_user),
 ):
     rules = ProjectRules(db)
-    # Aqui você pode validar que o current_user tem permissão de edição se quiser
-    return await rules.update_project(project_id, data)
+    return await rules.update_project(project_id, data, user_id=current_user.id)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,14 +1,20 @@
 ﻿import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from starlette.middleware.base import BaseHTTPMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.configs import settings
+from app.core.limiter import limiter
 from app.api.api import api_router
 from app.db.conection import engine
 
-IS_PRODUCTION = os.getenv("RENDER") is not None  # Render injeta essa var automaticamente
+IS_PRODUCTION = os.getenv("RENDER") is not None
+
 
 app = FastAPI(
     title="TCC API",
@@ -17,15 +23,33 @@ app = FastAPI(
     openapi_url=None if IS_PRODUCTION else "/openapi.json",
 )
 
+# ── Rate limiting ──────────────────────────────────────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# ── Security headers ───────────────────────────────────────────────────────────
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if IS_PRODUCTION:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 @app.on_event("startup")
 async def create_new_tables():
     async with engine.begin() as conn:
-        # Create any brand-new tables (e.g. card_history)
         await conn.run_sync(settings.DBBaseModel.metadata.create_all)
-
-        # Add new columns to existing tables (create_all ignores existing tables).
-        # IF NOT EXISTS is safe to run on every startup.
         await conn.execute(
             text('ALTER TABLE cards ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP')
         )
@@ -34,6 +58,9 @@ async def create_new_tables():
                 'ALTER TABLE lists ADD COLUMN IF NOT EXISTS "isFinal"'
                 " BOOLEAN NOT NULL DEFAULT FALSE"
             )
+        )
+        await conn.execute(
+            text('ALTER TABLE cards ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER')
         )
 
 
@@ -45,13 +72,12 @@ origins = [
     "https://trindade-to-do-list.vercel.app",
 ]
 
-# Middleware de CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # ou ["*"] para todos os domínios (não recomendado em produção)
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # permite todos os métodos (GET, POST, OPTIONS, etc.)
-    allow_headers=["*"],  # permite todos os headers (incluindo Authorization)
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # @app.get("health-check")

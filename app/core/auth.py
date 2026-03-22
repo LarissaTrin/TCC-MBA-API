@@ -61,20 +61,33 @@ class TokenService:
         token_lifetime = timedelta(
             minutes=minutes or self.VERIFICATION_TOKEN_EXPIRE_MINUTES
         )
-
         return self._create_token(
             type_token="access_token",
             life_temp=token_lifetime,
             sub=sub,
         )
 
-    def verify_verification_token(self, token: str) -> int:
+    def create_reset_token(self, sub: str) -> str:
+        """Cria um token exclusivo para redefinição de senha (15 min, tipo distinto)."""
+        return self._create_token(
+            type_token="password_reset",
+            life_temp=timedelta(minutes=15),
+            sub=sub,
+        )
+
+    def verify_reset_token(self, token: str) -> int:
+        """Valida um token de redefinição de senha. Retorna o user_id ou lança ValueError."""
         try:
-            payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])
-            if payload.get("type") != "verification":
-                raise ValueError("Tipo de token inválido.")
+            payload = jwt.decode(
+                token,
+                self.SECRET_KEY,
+                algorithms=[self.ALGORITHM],
+                options={"verify_aud": False},
+            )
+            if payload.get("type") != "password_reset":
+                raise ValueError("TOKEN_INVALID")
             return int(payload.get("sub"))
         except jwt.ExpiredSignatureError:
-            raise ValueError("Token expirado.")
+            raise ValueError("TOKEN_EXPIRED")
         except jwt.JWTError:
-            raise ValueError("Token inválido.")
+            raise ValueError("TOKEN_INVALID")

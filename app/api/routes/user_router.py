@@ -1,7 +1,8 @@
 ﻿from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.limiter import limiter
 
 from pydantic import BaseModel as PydanticBaseModel
 
@@ -27,7 +28,9 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=TokenData)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     login_data: OAuth2PasswordRequestForm = Depends(),
     db_session: AsyncSession = Depends(get_session),
 ):
@@ -124,7 +127,9 @@ async def save_notes(
 
 
 @router.post("/forgot-password")
+@limiter.limit("3/minute")
 async def forgot_password(
+    request: Request,
     data: ForgotPasswordRequest,
     db_session: AsyncSession = Depends(get_session),
 ):
@@ -139,8 +144,7 @@ async def forgot_password(
 async def reset_password(
     data: ResetPasswordRequest,
     db_session: AsyncSession = Depends(get_session),
-    current_user: UserModel = Depends(get_current_user),
 ):
     rules = UserRules(db_session)
-    await rules.reset_password(current_user.id, data.new_password)
+    await rules.reset_password_with_token(data.token, data.new_password)
     return {"message": "Password reset successfully."}

@@ -133,8 +133,20 @@ class ProjectRules:
 
         return projects
 
+    async def _get_user_role_in_project(self, project_id: int, user_id: int) -> str | None:
+        query = (
+            select(RoleModel.name)
+            .join(ProjectUserModel, RoleModel.id == ProjectUserModel.role_id)
+            .where(
+                ProjectUserModel.project_id == project_id,
+                ProjectUserModel.user_id == user_id,
+            )
+        )
+        result = await self.db_session.execute(query)
+        return result.scalar_one_or_none()
+
     async def update_project(
-        self, project_id: int, data: ProjectSchemaUp
+        self, project_id: int, data: ProjectSchemaUp, user_id: int
     ) -> ProjectModel:
         """
         Updates an existing project with the provided data.
@@ -153,6 +165,13 @@ class ProjectRules:
         Raises:
             Exception: If the project with the given ID is not found.
         """
+        role = await self._get_user_role_in_project(project_id, user_id)
+        if role not in {"SuperAdmin", "Admin"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only SuperAdmin and Admin can update project settings.",
+            )
+
         query = (
             select(ProjectModel)
             .options(
@@ -171,7 +190,7 @@ class ProjectRules:
         result = await self.db_session.execute(query)
         project = result.scalars().unique().one_or_none()
         if not project:
-            raise Exception(f"Project {project_id} not found")
+            raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
 
         # Update title and description
         if data.title is not None:
