@@ -16,7 +16,7 @@ class ProjectSchemaBase(CustomBaseModel):
 class ProjectSchemaUp(ProjectSchemaBase):
     title: Optional[str] = None
     description: Optional[str] = None
-    lists: Optional[list[ListSchemaUp]] = []
+    lists: Optional[list[ListSchemaUp]] = None
 
 
 class ProjectSchema(ProjectSchemaBase):

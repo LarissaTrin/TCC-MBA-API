@@ -17,6 +17,8 @@ class UserSchemaBase(CustomBaseModel):
 
     @field_validator("username")
     def validate_username(cls, value):
+        if value is None:
+            return value
         if not re.match("^([a-z]|[A-Z]|[0-9]|-|_|@)+$", value):
             raise ValueError("Invalid username")
         return value
@@ -29,7 +31,7 @@ class UserLoginSchema(CustomBaseModel):
 
 class UserSchemaCreate(UserSchemaBase):
     password: str
-    username: str
+    username: Optional[str] = None
 
 
 class UserSchema(UserSchemaBase):
@@ -43,6 +45,7 @@ class UserSchemaByEmail(CustomBaseModel):
 
 
 class UserSchemaUp(UserSchemaBase):
+    username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     password: Optional[str] = None

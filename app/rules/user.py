@@ -1,3 +1,5 @@
+import re
+import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -41,9 +43,16 @@ class UserRules:
             last_name=user.lastName,
         )
 
+    def _generate_username(self, first_name: str, last_name: str) -> str:
+        base = re.sub(r"[^a-zA-Z0-9]", "", f"{first_name}{last_name}").lower()
+        if not base:
+            base = "user"
+        return f"{base}{uuid.uuid4().hex[:6]}"
+
     async def create_user(self, user_data: UserSchemaCreate) -> UserModel:
         """
         Creates a new user after checking that the email and username are not taken.
+        Username is auto-generated from firstName + lastName + random suffix if not provided.
 
         Args:
             user_data (UserSchemaCreate): Data for the new user.
@@ -63,22 +72,31 @@ class UserRules:
                 detail="Email already registered.",
             )
 
-        # Check username
-        username_query = select(UserModel).where(
-            UserModel.username == user_data.username
-        )
-        result = await self.db_session.execute(username_query)
-        if result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Username already registered.",
-            )
+        # Determine username
+        if user_data.username:
+            username = user_data.username
+            # Check if manually provided username is taken
+            username_query = select(UserModel).where(UserModel.username == username)
+            result = await self.db_session.execute(username_query)
+            if result.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Username already registered.",
+                )
+        else:
+            # Auto-generate unique username
+            for _ in range(5):
+                username = self._generate_username(user_data.first_name, user_data.last_name)
+                username_query = select(UserModel).where(UserModel.username == username)
+                result = await self.db_session.execute(username_query)
+                if not result.scalar_one_or_none():
+                    break
 
         new_user = UserModel(
             firstName=user_data.first_name,
             lastName=user_data.last_name,
             email=user_data.email,
-            username=user_data.username,
+            username=username,
             password=generator_hash_password(user_data.password),
             isAdmin=user_data.is_admin,
         )

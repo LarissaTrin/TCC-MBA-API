@@ -31,6 +31,19 @@ def test_user_schema():
     assert result["is_admin"] is False
 
 
+def test_user_schema_without_username():
+    """Username is auto-generated when not provided."""
+    user = UserSchemaCreate(
+        password="pass#",
+        first_name="Larissa",
+        last_name="Trindade",
+        email="email@mail.com",
+    )
+    result = user.dict()
+    assert result.get("username") is None
+    assert result["first_name"] == "Larissa"
+
+
 def test_user_schema_invalid_username():
     with pytest.raises(ValueError):
         UserSchemaCreate(
@@ -112,10 +125,16 @@ def test_user_schema_base_with_id():
 
 
 def test_user_schema_up_all_optional():
-    # Should construct with no fields and produce an empty dict (all None)
+    # All fields are now optional — can construct with no fields
+    schema = UserSchemaUp()
+    result = schema.dict()
+    # All None values are filtered by CustomBaseModel.dict()
+    assert result == {}
+
+
+def test_user_schema_up_with_username():
     schema = UserSchemaUp(username="u", first_name="F", last_name="L", email="f@mail.com")
     result = schema.dict()
-    # Required fields from base are present
     assert result["username"] == "u"
 
 
