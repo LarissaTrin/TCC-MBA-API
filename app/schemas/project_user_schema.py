@@ -23,3 +23,7 @@ class ProjectMemberSearchItem(CustomBaseModel):
     first_name: str
     last_name: str
     email: EmailStr
+
+
+class UpdateMemberRoleRequest(CustomBaseModel):
+    role: str

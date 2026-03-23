@@ -69,12 +69,13 @@ async def update_list(
 async def delete_list(
     project_id: int,
     list_id: int,
+    target_list_id: int | None = Query(None),
     db: AsyncSession = Depends(get_session),
     current_user: UserSchema = Depends(get_current_user),
 ):
     rules = ListRules(db)
     try:
-        await rules.delete_list(project_id, list_id, current_user.id)
+        await rules.delete_list(project_id, list_id, current_user.id, target_list_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except NoResultFound:

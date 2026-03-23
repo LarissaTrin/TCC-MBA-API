@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload, joinedload
@@ -106,12 +106,57 @@ class ListRules:
         result = await self.db_session.execute(query)
         return result.unique().scalars().all()
 
+    async def _recalculate_final_list(self, project_id: int) -> None:
+        """
+        Marks the list with the highest order as is_final=True for the project;
+        all others become is_final=False. Also syncs completed_at on cards:
+        - Cards in the final list with no completed_at get it set to NOW().
+        - Cards in non-final lists get completed_at cleared.
+        """
+        result = await self.db_session.execute(
+            select(ListModel)
+            .where(ListModel.project_id == project_id)
+            .order_by(ListModel.order.desc())
+        )
+        lists = result.unique().scalars().all()
+
+        if not lists:
+            return
+
+        final_list_id = lists[0].id
+
+        for i, lst in enumerate(lists):
+            lst.is_final = i == 0
+
+        await self.db_session.flush()
+
+        # Cards NOT in the final list → clear completed_at
+        non_final_ids = [lst.id for lst in lists[1:]]
+        if non_final_ids:
+            await self.db_session.execute(
+                sql_update(CardModel)
+                .where(CardModel.list_id.in_(non_final_ids))
+                .values(completed_at=None)
+            )
+
+        # Cards IN the final list with no completed_at → set it now
+        await self.db_session.execute(
+            sql_update(CardModel)
+            .where(
+                CardModel.list_id == final_list_id,
+                CardModel.completed_at.is_(None),
+            )
+            .values(completed_at=func.now())
+        )
+
     async def add_list(
         self, project_id: int, data: ListSchemaUp, user_id: int
     ) -> ListModel:
         await self._check_manage_permission(project_id, user_id)
         new_list = ListModel(name=data.name, order=data.order, project_id=project_id)
         self.db_session.add(new_list)
+        await self.db_session.flush()
+        await self._recalculate_final_list(project_id)
         await self.db_session.commit()
         await self.db_session.refresh(new_list)
         return new_list
@@ -131,11 +176,19 @@ class ListRules:
             lst.name = data.name
         if data.order is not None:
             lst.order = data.order
+        await self.db_session.flush()
+        await self._recalculate_final_list(project_id)
         await self.db_session.commit()
         await self.db_session.refresh(lst)
         return lst
 
-    async def delete_list(self, project_id: int, list_id: int, user_id: int):
+    async def delete_list(
+        self,
+        project_id: int,
+        list_id: int,
+        user_id: int,
+        target_list_id: int | None = None,
+    ):
         await self._check_delete_permission(project_id, user_id)
 
         query = (
@@ -149,29 +202,58 @@ class ListRules:
             raise NoResultFound()
 
         if lst.cards:
-            target_query = (
-                select(ListModel)
-                .where(
-                    ListModel.project_id == project_id,
-                    ListModel.id != list_id,
-                    ListModel.order < lst.order,
+            if target_list_id is not None:
+                # Use the caller-specified target list
+                target_q = (
+                    select(ListModel.id)
+                    .where(
+                        ListModel.id == target_list_id,
+                        ListModel.project_id == project_id,
+                        ListModel.id != list_id,
+                    )
                 )
-                .order_by(ListModel.order.desc())
-                .limit(1)
+                target_result = await self.db_session.execute(target_q)
+                target_id = target_result.scalar_one_or_none()
+                if target_id is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Target list not found in this project.",
+                    )
+            else:
+                # Fallback: auto-pick the closest predecessor
+                target_query = (
+                    select(ListModel.id)
+                    .where(
+                        ListModel.project_id == project_id,
+                        ListModel.id != list_id,
+                        ListModel.order < lst.order,
+                    )
+                    .order_by(ListModel.order.desc())
+                    .limit(1)
+                )
+                target_result = await self.db_session.execute(target_query)
+                target_id = target_result.scalar_one_or_none()
+
+                if target_id is None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Cannot delete this list because there is no list with a lower order to receive its cards.",
+                    )
+
+            # Use a direct SQL UPDATE to avoid ORM cascade="delete-orphan" deleting
+            # the cards when the list is removed from the session.
+            await self.db_session.execute(
+                sql_update(CardModel)
+                .where(CardModel.list_id == list_id)
+                .values(list_id=target_id)
             )
-            target_result = await self.db_session.execute(target_query)
-            target_list = target_result.scalar_one_or_none()
-
-            if target_list is None:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Cannot delete this list because there is no list with a lower order to receive its cards.",
-                )
-
-            for card in lst.cards:
-                card.list_id = target_list.id
-
             await self.db_session.flush()
 
+            # Refresh lst so the ORM sees its cards collection as empty
+            # (they were moved in the DB above), preventing cascade delete.
+            await self.db_session.refresh(lst)
+
         await self.db_session.delete(lst)
+        await self.db_session.flush()
+        await self._recalculate_final_list(project_id)
         await self.db_session.commit()

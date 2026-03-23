@@ -364,7 +364,7 @@ class ProjectRules:
             r.name: r.id for r in roles_result.scalars().all()
         }
 
-        allowed_invite_roles = {"User", "Leader", "Admin"}
+        allowed_invite_roles = {"User", "Leader"} if caller_role == "Admin" else {"User", "Leader", "Admin"}
 
         # Fetch current project members
         existing_members_result = await self.db_session.execute(
@@ -507,6 +507,60 @@ class ProjectRules:
             )
 
         await self.db_session.delete(member)
+        await self.db_session.commit()
+
+    async def update_member_role(
+        self, project_id: int, target_user_id: int, new_role: str, current_user_id: int
+    ) -> None:
+        """
+        Updates the role of a project member.
+        Only SuperAdmin and Admin can change roles.
+        The SuperAdmin role cannot be changed.
+        Cannot assign the SuperAdmin role.
+        """
+        caller_role = await self._get_user_role_in_project(project_id, current_user_id)
+        if caller_role not in {"SuperAdmin", "Admin"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only SuperAdmin and Admin can change member roles.",
+            )
+
+        target_role = await self._get_user_role_in_project(project_id, target_user_id)
+        if target_role == "SuperAdmin":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The project creator's role cannot be changed.",
+            )
+
+        if caller_role == "Admin":
+            allowed_roles = {"User", "Leader"}
+        else:
+            allowed_roles = {"User", "Leader", "Admin"}
+
+        if new_role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Role must be one of: {', '.join(sorted(allowed_roles))}.",
+            )
+
+        roles_result = await self.db_session.execute(
+            select(RoleModel).where(RoleModel.name == new_role)
+        )
+        role_obj = roles_result.scalar_one_or_none()
+        if not role_obj:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found.")
+
+        result = await self.db_session.execute(
+            select(ProjectUserModel).where(
+                ProjectUserModel.project_id == project_id,
+                ProjectUserModel.user_id == target_user_id,
+            )
+        )
+        member = result.unique().scalar_one_or_none()
+        if not member:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found.")
+
+        member.role_id = role_obj.id
         await self.db_session.commit()
 
     async def get_project_tags(self, project_id: int, search: str | None = None) -> list[TagModel]:

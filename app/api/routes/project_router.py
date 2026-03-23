@@ -11,7 +11,7 @@ from app.schemas.project_schema import (
     ProjectSchemaUp,
 )
 from app.schemas.tag_schema import TagSchema
-from app.schemas.project_user_schema import ProjectUserSchemaBase, ProjectMemberSearchItem
+from app.schemas.project_user_schema import ProjectUserSchemaBase, ProjectMemberSearchItem, UpdateMemberRoleRequest
 from app.core.deps import get_current_user, get_session
 from app.rules.project import ProjectRules
 from app.schemas.user_schema import UserSchema
@@ -102,6 +102,24 @@ async def remove_project_member(
     await rules.remove_project_member(
         project_id=project_id,
         user_id_to_remove=member_user_id,
+        current_user_id=current_user.id,
+    )
+
+
+@router.put("/{project_id}/members/{member_user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def update_project_member_role(
+    project_id: int,
+    member_user_id: int,
+    body: UpdateMemberRoleRequest,
+    db: AsyncSession = Depends(get_session),
+    current_user: UserSchema = Depends(get_current_user),
+):
+    rules = ProjectRules(db)
+    new_role = body.role
+    await rules.update_member_role(
+        project_id=project_id,
+        target_user_id=member_user_id,
+        new_role=new_role,
         current_user_id=current_user.id,
     )
 
