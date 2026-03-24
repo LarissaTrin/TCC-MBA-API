@@ -71,6 +71,14 @@ class CardRules:
                 created_at=datetime.utcnow(),
             )
             self.db_session.add(new_card)
+            await self.db_session.flush()
+            self.db_session.add(
+                CardHistoryModel(
+                    card_id=new_card.id,
+                    action="created",
+                    new_value=card_data.title,
+                )
+            )
             await self.db_session.commit()
             await self.db_session.refresh(new_card)
             return new_card.id
@@ -139,6 +147,17 @@ class CardRules:
                     )
                 )
 
+        # --- Audit Log: edited (title changed) ---
+        if data.title is not None and data.title != card.title:
+            self.db_session.add(
+                CardHistoryModel(
+                    card_id=card.id,
+                    action="edited",
+                    old_value=card.title,
+                    new_value=data.title,
+                )
+            )
+
         # --- Audit Log: assigned, priority_changed, due_date_changed ---
         if data.user_id is not None and data.user_id != card.user_id:
             self.db_session.add(
@@ -185,6 +204,7 @@ class CardRules:
             "list_id",
             "blocked",
             "sort_order",
+            "category_id",
         ]:
             if (value := getattr(data, field)) is not None:
                 setattr(card, field, value)
@@ -293,6 +313,13 @@ class CardRules:
                         cardId=card.id,
                     )
                     self.db_session.add(new_task)
+                    self.db_session.add(
+                        CardHistoryModel(
+                            card_id=card.id,
+                            action="task_added",
+                            new_value=task_data.title,
+                        )
+                    )
 
             if existing_tasks:
                 await self.db_session.execute(

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from app.schemas.base import CustomBaseModel
+from app.schemas.category_schema import CategorySchema
 from app.schemas.user_schema import UserSchemaBase
 
 
@@ -17,6 +18,7 @@ class DashboardCardSchema(CustomBaseModel):
     project_id: int
     project_title: str
     user: Optional[UserSchemaBase] = None
+    category: Optional[CategorySchema] = None
 
 
 class MyDayResponse(CustomBaseModel):

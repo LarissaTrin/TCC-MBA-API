@@ -3,6 +3,7 @@ from datetime import datetime
 
 from app.schemas.approver_schema import ApproverSchema, ApproverSchemaBase
 from app.schemas.base import CustomBaseModel
+from app.schemas.category_schema import CategorySchema
 from app.schemas.comment_schema import CommentCreateSchema, CommentSchema
 from app.schemas.tag_card_schema import TagCardSchema, TagCardSchemaBase
 from app.schemas.tasks_card_schema import TaskCardSchema, TaskCardSchemaBase
@@ -28,6 +29,7 @@ class CardSchemaUp(CustomBaseModel):
     list_id: Optional[int] = None
     blocked: Optional[bool] = None
     sort_order: Optional[int] = None
+    category_id: Optional[int] = None
 
     tag_cards: list[TagCardSchemaBase] = None
     approvers: list[ApproverSchemaBase] = None
@@ -53,6 +55,7 @@ class CardSchema(CardSchemaUp):
     completed_at: Optional[datetime] = None
 
     user: Optional[UserSchemaBase] = None
+    category: Optional[CategorySchema] = None
     tag_cards: Optional[list[TagCardSchema]] = None
     comments: Optional[list[CommentSchema]] = None
     approvers: Optional[list[ApproverSchema]] = None

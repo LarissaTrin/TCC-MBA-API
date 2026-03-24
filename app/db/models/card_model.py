@@ -27,9 +27,11 @@ class CardModel(settings.DBBaseModel):
     story_points = Column("storyPoints", Integer, nullable=True)
     blocked = Column("blocked", Boolean, nullable=False, default=False)
     sort_order = Column("sortOrder", Integer, nullable=True)
+    category_id = Column("categoryId", Integer, ForeignKey("categories.id"), nullable=True)
 
     # relationships
     user = relationship("UserModel", lazy="joined")
+    category = relationship("CategoryModel", lazy="joined")
     list = relationship("ListModel", back_populates="cards")
 
     tag_cards = relationship(

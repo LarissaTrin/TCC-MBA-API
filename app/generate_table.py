@@ -4,6 +4,7 @@ from sqlalchemy.future import select
 
 from app.core.configs import settings
 from app.db.conection import engine, Session
+from app.db.models.category_model import CategoryModel
 from app.db.models.role_model import RoleModel
 
 
@@ -38,6 +39,30 @@ async def create_tables() -> None:
     print("Tabelas criadas com sucesso")
 
     await seed_roles()
+    await seed_categories()
+
+
+async def seed_categories():
+    async with Session() as session:
+        result = await session.execute(select(CategoryModel))
+        categories_exist = result.scalars().first()
+
+        if categories_exist:
+            print("Categorias já existem. Pulando inserção.")
+            return
+
+        print("Inserindo categorias padrão...")
+        categories = [
+            CategoryModel(name="Bug"),
+            CategoryModel(name="Enhancement"),
+            CategoryModel(name="Feature"),
+            CategoryModel(name="Improvement"),
+            CategoryModel(name="Issue"),
+            CategoryModel(name="Task"),
+        ]
+        session.add_all(categories)
+        await session.commit()
+        print("Categorias inseridas com sucesso.")
 
 
 async def seed_roles():

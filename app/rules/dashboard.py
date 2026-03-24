@@ -344,4 +344,5 @@ class DashboardRules:
             project_id=project.id,
             project_title=project.title,
             user=card.user,
+            category=card.category,
         )
