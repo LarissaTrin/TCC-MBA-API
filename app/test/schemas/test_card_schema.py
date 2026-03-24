@@ -3,8 +3,12 @@ from datetime import datetime
 
 from schemas.card_schema import (
     CardDependenciesResponse,
+    CardDependencyAdd,
     CardDependencyItem,
     CardHistorySchema,
+    CardPageResponse,
+    CardReorderItem,
+    CardReorderRequest,
     CardSchema,
     CardSchemaBase,
     CardSchemaUp,
@@ -159,3 +163,86 @@ def test_card_search_result():
     schema = CardSearchResult(id=7, card_number=12, title="Implement login")
     result = schema.dict()
     assert result == {"id": 7, "card_number": 12, "title": "Implement login"}
+
+
+# ── CardReorderItem ───────────────────────────────────────────────────────────
+
+
+def test_card_reorder_item():
+    item = CardReorderItem(card_id=3, sort_order=1)
+    result = item.dict()
+    assert result["card_id"] == 3
+    assert result["sort_order"] == 1
+
+
+def test_card_reorder_item_missing_card_id():
+    with pytest.raises(Exception):
+        CardReorderItem(sort_order=1)
+
+
+def test_card_reorder_item_missing_sort_order():
+    with pytest.raises(Exception):
+        CardReorderItem(card_id=1)
+
+
+# ── CardReorderRequest ────────────────────────────────────────────────────────
+
+
+def test_card_reorder_request_empty():
+    schema = CardReorderRequest(items=[])
+    assert schema.dict() == {"items": []}
+
+
+def test_card_reorder_request_with_items():
+    items = [
+        CardReorderItem(card_id=1, sort_order=1),
+        CardReorderItem(card_id=2, sort_order=2),
+    ]
+    schema = CardReorderRequest(items=items)
+    result = schema.dict()
+    assert len(result["items"]) == 2
+    assert result["items"][0]["card_id"] == 1
+    assert result["items"][1]["sort_order"] == 2
+
+
+def test_card_reorder_request_missing_items():
+    with pytest.raises(Exception):
+        CardReorderRequest()
+
+
+# ── CardDependencyAdd ─────────────────────────────────────────────────────────
+
+
+def test_card_dependency_add():
+    schema = CardDependencyAdd(related_card_id=15)
+    assert schema.dict()["related_card_id"] == 15
+
+
+def test_card_dependency_add_missing_field():
+    with pytest.raises(Exception):
+        CardDependencyAdd()
+
+
+# ── CardPageResponse ──────────────────────────────────────────────────────────
+
+
+def test_card_page_response_empty():
+    schema = CardPageResponse(cards=[], total=0, page=1, has_more=False)
+    result = schema.dict()
+    assert result["cards"] == []
+    assert result["total"] == 0
+    assert result["page"] == 1
+    assert result["has_more"] is False
+
+
+def test_card_page_response_has_more():
+    schema = CardPageResponse(cards=[], total=50, page=2, has_more=True)
+    result = schema.dict()
+    assert result["total"] == 50
+    assert result["page"] == 2
+    assert result["has_more"] is True
+
+
+def test_card_page_response_missing_fields():
+    with pytest.raises(Exception):
+        CardPageResponse(cards=[], total=10)

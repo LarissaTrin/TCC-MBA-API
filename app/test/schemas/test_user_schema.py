@@ -5,7 +5,10 @@ from schemas.user_schema import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
     TokenData,
+    UserLoginSchema,
+    UserSchema,
     UserSchemaBase,
+    UserSchemaByEmail,
     UserSchemaCreate,
     UserSchemaUp,
 )
@@ -200,5 +203,87 @@ def test_forgot_password_request_invalid_email():
 
 
 def test_reset_password_request():
-    req = ResetPasswordRequest(new_password="secure123")
-    assert req.dict() == {"new_password": "secure123"}
+    req = ResetPasswordRequest(token="abc123", new_password="secure123")
+    result = req.dict()
+    assert result["token"] == "abc123"
+    assert result["new_password"] == "secure123"
+
+
+# ── UserLoginSchema ───────────────────────────────────────────────────────────
+
+
+def test_user_login_schema_required_fields():
+    schema = UserLoginSchema(username="alice", password="secret")
+    result = schema.dict()
+    assert result["username"] == "alice"
+    assert result["password"] == "secret"
+
+
+def test_user_login_schema_missing_username():
+    import pytest
+
+    with pytest.raises(Exception):
+        UserLoginSchema(password="secret")
+
+
+def test_user_login_schema_missing_password():
+    import pytest
+
+    with pytest.raises(Exception):
+        UserLoginSchema(username="alice")
+
+
+# ── UserSchema ────────────────────────────────────────────────────────────────
+
+
+def test_user_schema_extends_base():
+    schema = UserSchema(
+        username="bob",
+        first_name="Bob",
+        last_name="Smith",
+        email="bob@mail.com",
+    )
+    result = schema.dict()
+    assert result["username"] == "bob"
+    assert result["is_admin"] is False
+
+
+def test_user_schema_with_id():
+    schema = UserSchema(
+        id=5,
+        username="carol",
+        first_name="Carol",
+        last_name="White",
+        email="carol@mail.com",
+        is_admin=True,
+    )
+    result = schema.dict()
+    assert result["id"] == 5
+    assert result["is_admin"] is True
+
+
+# ── UserSchemaByEmail ─────────────────────────────────────────────────────────
+
+
+def test_user_schema_by_email_required_fields():
+    schema = UserSchemaByEmail(
+        first_name="Diana", last_name="Prince", email="diana@mail.com"
+    )
+    result = schema.dict()
+    assert result["first_name"] == "Diana"
+    assert result["last_name"] == "Prince"
+    assert result["email"] == "diana@mail.com"
+
+
+def test_user_schema_by_email_invalid_email():
+    import pytest
+
+    with pytest.raises(Exception):
+        UserSchemaByEmail(first_name="X", last_name="Y", email="not-an-email")
+
+
+def test_user_schema_by_email_missing_field():
+    import pytest
+
+    with pytest.raises(Exception):
+        UserSchemaByEmail(first_name="X", email="x@mail.com")

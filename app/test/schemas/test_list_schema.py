@@ -4,6 +4,7 @@ from schemas.list_schema import (
     ListSchema,
     ListSchemaBase,
     ListSchemaProject,
+    ListSchemaSlim,
     ListSchemaUp,
 )
 
@@ -95,3 +96,30 @@ def test_list_schema_project_is_final():
     result = schema.dict()
     assert result["is_final"] is True
     assert result["project_id"] == 7
+
+
+# ── ListSchemaSlim ────────────────────────────────────────────────────────────
+
+
+def test_list_schema_slim_required_fields():
+    schema = ListSchemaSlim(id=1, name="Backlog", order=0)
+    result = schema.dict()
+    assert result["id"] == 1
+    assert result["name"] == "Backlog"
+    assert result["order"] == 0
+    assert result["is_final"] is False
+
+
+def test_list_schema_slim_is_final():
+    schema = ListSchemaSlim(id=4, name="Done", order=3, is_final=True)
+    result = schema.dict()
+    assert result["is_final"] is True
+    assert result["id"] == 4
+
+
+def test_list_schema_slim_missing_required():
+    with pytest.raises(Exception):
+        ListSchemaSlim(name="Todo", order=0)
+
+    with pytest.raises(Exception):
+        ListSchemaSlim(id=1, order=0)
