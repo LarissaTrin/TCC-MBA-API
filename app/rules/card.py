@@ -1,5 +1,6 @@
 ﻿from datetime import datetime
 from sqlalchemy import cast, delete, or_, select, func, and_, String
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
 
@@ -11,6 +12,7 @@ from app.db.models.card_history_model import CardHistoryModel
 from app.db.models.card_model import CardModel
 from app.db.models.list_model import ListModel
 from app.db.models.project_user_model import ProjectUserModel
+from app.db.models.user_model import UserModel
 from app.db.models.role_model import RoleModel
 from app.db.models.tag_card_model import TagCardModel
 from app.db.models.tag_model import TagModel
@@ -30,7 +32,7 @@ class CardRules:
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
-    async def add_card(self, list_id: int, card_data: CardSchemaBase) -> int:
+    async def add_card(self, list_id: int, card_data: CardSchemaBase, user_id: int | None = None) -> int:
         """
         Adds a new card to the specified list, automatically assigning the card
         number based on the total number of cards in the project.
@@ -77,6 +79,7 @@ class CardRules:
                     card_id=new_card.id,
                     action="created",
                     new_value=card_data.title,
+                    user_id=user_id,
                 )
             )
             await self.db_session.commit()
@@ -103,7 +106,7 @@ class CardRules:
 
         return card
 
-    async def update_card(self, card_id: int, data: CardSchemaUp) -> CardModel:
+    async def update_card(self, card_id: int, data: CardSchemaUp, user_id: int | None = None) -> CardModel:
         """
         Updates a card's simple fields and relationships (tags, approvers, tasks).
 
@@ -144,6 +147,7 @@ class CardRules:
                         action="moved",
                         old_value=old_list.name if old_list else str(card.list_id),
                         new_value=new_list.name,
+                        user_id=user_id,
                     )
                 )
 
@@ -155,17 +159,37 @@ class CardRules:
                     action="edited",
                     old_value=card.title,
                     new_value=data.title,
+                    user_id=user_id,
                 )
             )
 
         # --- Audit Log: assigned, priority_changed, due_date_changed ---
-        if data.user_id is not None and data.user_id != card.user_id:
+        if "user_id" in data.model_fields_set and data.user_id != card.user_id:
+            old_name = "Unassigned"
+            if card.user_id:
+                old_user_result = await self.db_session.execute(
+                    select(UserModel).where(UserModel.id == card.user_id)
+                )
+                old_user = old_user_result.scalars().unique().one_or_none()
+                if old_user:
+                    old_name = f"{old_user.firstName} {old_user.lastName}".strip()
+
+            new_name = "Unassigned"
+            if data.user_id is not None:
+                new_user_result = await self.db_session.execute(
+                    select(UserModel).where(UserModel.id == data.user_id)
+                )
+                new_user = new_user_result.scalars().unique().one_or_none()
+                if new_user:
+                    new_name = f"{new_user.firstName} {new_user.lastName}".strip()
+
             self.db_session.add(
                 CardHistoryModel(
                     card_id=card.id,
                     action="assigned",
-                    old_value=str(card.user_id) if card.user_id else "Unassigned",
-                    new_value=str(data.user_id),
+                    old_value=old_name,
+                    new_value=new_name,
+                    user_id=user_id,
                 )
             )
 
@@ -176,6 +200,7 @@ class CardRules:
                     action="priority_changed",
                     old_value=str(card.priority) if card.priority is not None else "No priority",
                     new_value=str(data.priority),
+                    user_id=user_id,
                 )
             )
 
@@ -186,13 +211,13 @@ class CardRules:
                     action="due_date_changed",
                     old_value=card.date.strftime("%Y-%m-%d") if card.date else "No date",
                     new_value=data.date.strftime("%Y-%m-%d"),
+                    user_id=user_id,
                 )
             )
 
         # --- Update simple fields ---
         for field in [
             "title",
-            "user_id",
             "description",
             "date",
             "start_date",
@@ -208,6 +233,10 @@ class CardRules:
         ]:
             if (value := getattr(data, field)) is not None:
                 setattr(card, field, value)
+
+        # user_id is handled separately: None means "clear the assignee"
+        if "user_id" in data.model_fields_set:
+            card.user_id = data.user_id
 
         # --- Tags ---
         if data.tag_cards is not None:
@@ -318,6 +347,7 @@ class CardRules:
                             card_id=card.id,
                             action="task_added",
                             new_value=task_data.title,
+                            user_id=user_id,
                         )
                     )
 
@@ -361,6 +391,7 @@ class CardRules:
         query = (
             select(CardHistoryModel)
             .where(CardHistoryModel.card_id == card_id)
+            .options(selectinload(CardHistoryModel.user))
             .order_by(CardHistoryModel.created_at.desc())
         )
         result = await self.db_session.execute(query)
@@ -430,7 +461,7 @@ class CardRules:
             ]
         )
 
-    async def add_dependency(self, card_id: int, related_card_id: int) -> None:
+    async def add_dependency(self, card_id: int, related_card_id: int, user_id: int | None = None) -> None:
         """Adiciona um card como dependência. Registra no histórico."""
         if card_id == related_card_id:
             raise HTTPException(
@@ -460,11 +491,12 @@ class CardRules:
                 card_id=card_id,
                 action="dependency_added",
                 new_value=f"#{related.card_number} {related.title}",
+                user_id=user_id,
             )
         )
         await self.db_session.commit()
 
-    async def remove_dependency(self, card_id: int, related_card_id: int) -> None:
+    async def remove_dependency(self, card_id: int, related_card_id: int, user_id: int | None = None) -> None:
         """Remove uma dependência e registra no histórico."""
         related_result = await self.db_session.execute(
             select(CardModel).where(CardModel.id == related_card_id)
@@ -486,6 +518,7 @@ class CardRules:
                     card_id=card_id,
                     action="dependency_removed",
                     old_value=f"#{related.card_number} {related.title}",
+                    user_id=user_id,
                 )
             )
 

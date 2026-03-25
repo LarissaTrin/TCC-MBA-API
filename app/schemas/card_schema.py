@@ -62,12 +62,18 @@ class CardSchema(CardSchemaUp):
     tasks_card: Optional[list[TaskCardSchema]] = None
 
 
+class CardHistoryUserSchema(CustomBaseModel):
+    first_name: str
+    last_name: str
+
+
 class CardHistorySchema(CustomBaseModel):
     id: int
     action: str
     old_value: Optional[str] = None
     new_value: Optional[str] = None
     created_at: datetime
+    user: Optional[CardHistoryUserSchema] = None
 
 
 class CardDependencyItem(CustomBaseModel):

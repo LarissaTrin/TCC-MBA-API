@@ -34,7 +34,7 @@ async def create_card(
     rules = CardRules(db_session)
 
     try:
-        new_card_id = await rules.add_card(list_id, card_data)
+        new_card_id = await rules.add_card(list_id, card_data, user_id=current_user.id)
         return new_card_id
     except NoResultFound as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -100,7 +100,7 @@ async def update_card(
     rules = CardRules(db_session)
 
     try:
-        updated_card = await rules.update_card(card_id, card_data)
+        updated_card = await rules.update_card(card_id, card_data, user_id=current_user.id)
         return updated_card
     except NoResultFound:
         raise HTTPException(
@@ -141,7 +141,7 @@ async def add_card_dependency(
 ):
     """Adds a card as a dependency."""
     rules = CardRules(db_session)
-    await rules.add_dependency(card_id, body.related_card_id)
+    await rules.add_dependency(card_id, body.related_card_id, user_id=current_user.id)
 
 
 @router.delete(
@@ -156,7 +156,7 @@ async def remove_card_dependency(
 ):
     """Removes a dependency from the card."""
     rules = CardRules(db_session)
-    await rules.remove_dependency(card_id, related_card_id)
+    await rules.remove_dependency(card_id, related_card_id, user_id=current_user.id)
 
 
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
