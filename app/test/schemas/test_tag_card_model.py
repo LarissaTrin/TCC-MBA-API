@@ -16,9 +16,7 @@ from schemas.tag_schema import TagSchemaBase
 
 def test_tag_card_model_has_cardId_attribute():
     """TagCardModel must expose 'cardId', not 'card_id'."""
-    import sys
-    sys.path.insert(0, "app")
-    from db.models.tag_card_model import TagCardModel
+    from app.db.models.tag_card_model import TagCardModel
 
     col_names = [c.key for c in TagCardModel.__table__.columns]
     assert "cardId" in col_names, f"Expected 'cardId' in columns, got: {col_names}"
@@ -27,9 +25,7 @@ def test_tag_card_model_has_cardId_attribute():
 
 def test_tag_card_model_has_tagId_attribute():
     """TagCardModel must expose 'tagId', not 'tag_id'."""
-    import sys
-    sys.path.insert(0, "app")
-    from db.models.tag_card_model import TagCardModel
+    from app.db.models.tag_card_model import TagCardModel
 
     col_names = [c.key for c in TagCardModel.__table__.columns]
     assert "tagId" in col_names, f"Expected 'tagId' in columns, got: {col_names}"
@@ -37,17 +33,13 @@ def test_tag_card_model_has_tagId_attribute():
 
 
 def test_tag_card_model_table_name():
-    import sys
-    sys.path.insert(0, "app")
-    from db.models.tag_card_model import TagCardModel
+    from app.db.models.tag_card_model import TagCardModel
 
     assert TagCardModel.__tablename__ == "tagCards"
 
 
 def test_tag_card_model_columns_complete():
-    import sys
-    sys.path.insert(0, "app")
-    from db.models.tag_card_model import TagCardModel
+    from app.db.models.tag_card_model import TagCardModel
 
     col_names = {c.key for c in TagCardModel.__table__.columns}
     assert col_names == {"id", "cardId", "tagId"}

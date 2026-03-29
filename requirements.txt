@@ -5,6 +5,8 @@ sqlalchemy
 asyncpg
 psycopg2-binary
 pytest
+pytest-asyncio
+pytest-cov
 alembic
 python-decouple
 requests
